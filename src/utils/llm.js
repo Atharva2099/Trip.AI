@@ -1,47 +1,46 @@
+import { format, eachDayOfInterval, parseISO } from 'date-fns';
+
 export const generateItinerary = async (tripData) => {
   console.log("Starting itinerary generation with data:", tripData);
 
   try {
-    const systemPrompt = `You are a travel planning assistant. You must respond ONLY with valid JSON, no explanatory text. Your response must exactly follow the specified JSON format.`;
+    const dateRange = eachDayOfInterval({
+      start: parseISO(tripData.dates.start),
+      end: parseISO(tripData.dates.end)
+    });
 
-    const userPrompt = `Generate a travel itinerary with these requirements:
+    const formattedDates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
+    
+    const systemPrompt = `You are a travel planning assistant that MUST ONLY respond with valid JSON. Do not include any explanatory text, markdown formatting, or additional content. The response must be a pure JSON object and nothing else.`;
+
+    const userPrompt = `Create an itinerary with these exact requirements:
     - Destination: ${tripData.destination}
-    - Duration: ${(new Date(tripData.dates.end) - new Date(tripData.dates.start)) / (1000 * 60 * 60 * 24)} days
+    - Dates: ${formattedDates.join(', ')}
     - Budget: $${tripData.budget}
     - Interests: ${tripData.interests}
-    - Additional Notes: ${tripData.additionalNotes || "None"}
+    - Additional Notes: ${tripData.additionalNotes || 'None'}
 
-    You must respond with a JSON object exactly matching this structure:
+    Respond with ONLY a JSON object using this structure, no other text:
     {
       "days": [
         {
-          "date": "YYYY-MM-DD",
+          "date": "${formattedDates[0]}",
           "activities": [
             {
-              "time": "HH:MM",
-              "name": "Specific Location Name",
-              "description": "Brief Description",
-              "cost": 100,
+              "time": "09:00",
+              "name": "Example Location",
+              "description": "Brief activity description",
+              "cost": 50,
               "coordinates": {
-                "lat": 40.4167,
-                "lng": -3.7033
+                "lat": 37.7749,
+                "lng": -122.4194
               }
             }
           ]
         }
       ],
-      "totalCost": 1000
-    }
-
-    Rules:
-    1. Use real coordinates for actual locations
-    2. Use exact location names
-    3. Use realistic costs
-    4. Keep descriptions concise
-    5. Format times as HH:MM
-    6. Format dates as YYYY-MM-DD
-    7. All numbers should be without quotes
-    8. Respond only with the JSON, no additional text`;
+      "totalCost": 500
+    }`;
 
     console.log("Sending request to Groq API...");
     
@@ -54,10 +53,16 @@ export const generateItinerary = async (tripData) => {
       body: JSON.stringify({
         model: "llama3-8b-8192",
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
+          { 
+            role: "system", 
+            content: systemPrompt 
+          },
+          { 
+            role: "user", 
+            content: userPrompt 
+          }
         ],
-        temperature: 0.5, // Reduced for more consistent output
+        temperature: 0.5, // Reduced temperature for more consistent output
         max_tokens: 4000,
         top_p: 1,
         response_format: { type: "json_object" }
@@ -77,35 +82,47 @@ export const generateItinerary = async (tripData) => {
       throw new Error("No content in response");
     }
 
-    // Try to clean the response before parsing
+    // Clean the response
     let content = data.choices[0].message.content;
+    
+    // Remove any non-JSON content
     try {
-      // Remove any markdown code block indicators if present
-      content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-      // Remove any leading/trailing whitespace
-      content = content.trim();
+      content = content.substring(
+        content.indexOf('{'),
+        content.lastIndexOf('}') + 1
+      );
       
       const itinerary = JSON.parse(content);
-      console.log("Successfully parsed itinerary:", itinerary);
 
       // Validate the structure
       if (!itinerary.days || !Array.isArray(itinerary.days)) {
         throw new Error("Invalid itinerary structure");
       }
 
+      // Ensure correct dates
+      itinerary.days = itinerary.days.map((day, index) => ({
+        ...day,
+        date: formattedDates[index] || formattedDates[0]
+      }));
+
+      // Sort days by date
+      itinerary.days.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      console.log("Parsed itinerary:", itinerary);
+
       // Extract locations for mapping
       const locations = itinerary.days.flatMap(day =>
-        (day.activities || []).map(activity => ({
+        day.activities.map(activity => ({
           name: activity.name,
           coordinates: activity.coordinates,
           description: activity.description,
         }))
-      ).filter(loc => loc.coordinates && loc.coordinates.lat && loc.coordinates.lng);
+      );
 
       return { itinerary, locations };
-      
     } catch (parseError) {
       console.error("Failed to parse content:", content);
+      console.error("Parse error:", parseError);
       throw new Error("Failed to parse LLM response. The model returned invalid JSON.");
     }
   } catch (error) {
