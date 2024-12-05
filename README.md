@@ -118,8 +118,8 @@ For videos, you can use:
 
 ## 📧 Contact
 
-- GitHub: [@yourusername](https://github.com/Atharva2099)
-- Twitter: [@yourhandle](https://x.com/attharave)
+- GitHub: [@Attharave](https://github.com/Atharva2099)
+- Twitter: [@FullMLAlchemist](https://x.com/attharave)
 
 ---
 
