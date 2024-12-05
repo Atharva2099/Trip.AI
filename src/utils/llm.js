@@ -10,29 +10,35 @@ export const generateItinerary = async (tripData) => {
     });
 
     const formattedDates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
+    const budgetPerPerson = Math.floor(parseInt(tripData.budget) / parseInt(tripData.numPeople || 1));
     
-    const systemPrompt = `You are a travel planning assistant that MUST ONLY respond with valid JSON. Do not include any explanatory text or markdown formatting. The response must be a pure JSON object and nothing else. Focus only on providing realistic, verified information.`;
+    const systemPrompt = `You are a travel planning assistant that MUST ONLY respond with valid JSON. Your task is to create realistic daily itineraries with accurate cost breakdowns for ${tripData.numPeople || 1} people. Calculate all costs per person and ensure they sum correctly. Each daily total must include all meals and activities. The final total must accurately reflect the sum of all daily costs multiplied by the number of people. Do not include any explanatory text or markdown formatting. The response must be a pure JSON object and nothing else. Focus only on providing realistic, verified information.`;
 
     const userPrompt = `Generate a detailed travel itinerary for ${tripData.destination}.
 Trip Details:
+- Number of People: ${tripData.numPeople || 1}
 - Duration: ${formattedDates.length} days
 - Start Date: ${formattedDates[0]}
 - End Date: ${formattedDates[formattedDates.length - 1]}
-- Budget: $${tripData.budget}
+- Budget Per Person: $${budgetPerPerson}
+- Total Group Budget: $${tripData.budget}
 - Interests: ${tripData.interests}
 - Notes: ${tripData.additionalNotes || 'None'}
 
 Required Elements Per Day:
-1. Main Activities (2-3)
-2. Meals at local restaurants
-3. Transportation between locations
+1. Main Activities (2-3) with accurate individual costs
+2. Three meals at local restaurants (breakfast, lunch, dinner)
+3. Transportation between locations with per-person costs
 
 Constraints:
 1. Keep all locations within 50km of city center
-2. Total cost must not exceed budget
-3. Use realistic prices
+2. Total cost per person must not exceed ${budgetPerPerson}
+3. Use realistic local prices
 4. Include exact coordinates
 5. Activities between 8:00-22:00 only
+6. All costs must be per person
+7. Daily totals must include all meals and activities
+8. Final total must be the sum of all daily costs multiplied by ${tripData.numPeople || 1}
 
 Respond with only this exact JSON structure:
 {
@@ -48,29 +54,43 @@ Respond with only this exact JSON structure:
           "coordinates": {
             "lat": 37.7749,
             "lng": -122.4194
-          }
+          },
+          "transport": {
+            "method": "subway",
+            "duration": "20 mins",
+            "cost": 3
+          },
+          "distance": 2.5
         }
       ],
       "meals": [
         {
-          "type": "lunch",
-          "time": "12:00",
+          "type": "breakfast",
+          "time": "08:00",
           "name": "Restaurant Name",
           "description": "Cuisine type",
-          "cost": 25,
-          "coordinates": {
-            "lat": 37.7749,
-            "lng": -122.4194
-          }
+          "cost": 25
         }
-      ]
+      ],
+      "accommodation_options": [
+        {
+          "name": "Hotel Name",
+          "description": "Hotel description",
+          "type": "hotel",
+          "cost_per_night": 150,
+          "distance_to_next_activity": "1.2 km"
+        }
+      ],
+      "dailyTotal": 75
     }
   ],
-  "totalCost": 500,
+  "perPersonTotal": 500,
+  "groupTotal": 1000,
   "costBreakdown": {
     "activities": 200,
     "food": 150,
-    "transportation": 150
+    "transportation": 150,
+    "accommodation": 0
   }
 }`;
 
@@ -94,7 +114,7 @@ Respond with only this exact JSON structure:
             content: userPrompt 
           }
         ],
-        temperature: 0.3,  // Lower temperature for more consistent output
+        temperature: 0.3,
         max_tokens: 4000,
         top_p: 1,
         response_format: { type: "json_object" }
@@ -123,25 +143,12 @@ Respond with only this exact JSON structure:
         content.lastIndexOf('}') + 1
       );
       
-      // Attempt to parse JSON
-      const itinerary = JSON.parse(content);
-
-      // Validate structure
-      if (!itinerary.days || !Array.isArray(itinerary.days)) {
-        throw new Error("Invalid itinerary structure");
-      }
-
-      // Ensure all days have proper data
-      itinerary.days = itinerary.days.map((day, index) => ({
-        date: formattedDates[index],
-        activities: day.activities || [],
-        meals: day.meals || []
-      }));
-
-      console.log("Parsed itinerary:", itinerary);
+      // Parse and validate the response
+      const parsedItinerary = JSON.parse(content);
+      const validatedItinerary = validateAndAdjustCosts(parsedItinerary, tripData.numPeople || 1);
 
       // Extract locations for mapping
-      const locations = itinerary.days.flatMap(day => [
+      const locations = validatedItinerary.days.flatMap(day => [
         ...day.activities.map(activity => ({
           name: activity.name,
           coordinates: activity.coordinates,
@@ -154,8 +161,10 @@ Respond with only this exact JSON structure:
         }))
       ]);
 
+      console.log("Validated itinerary:", validatedItinerary);
+
       return {
-        itinerary,
+        itinerary: validatedItinerary,
         locations
       };
 
@@ -168,4 +177,44 @@ Respond with only this exact JSON structure:
     console.error("Detailed error in generateItinerary:", error);
     throw error;
   }
+};
+
+// Helper function to validate and adjust costs
+const validateAndAdjustCosts = (itinerary, numPeople) => {
+  itinerary.days = itinerary.days.map(day => {
+    // Calculate actual daily total including all costs
+    const activitiesCost = day.activities.reduce((sum, act) => sum + (act.cost || 0), 0);
+    const mealsCost = day.meals.reduce((sum, meal) => sum + (meal.cost || 0), 0);
+    const transportCost = day.activities.reduce((sum, act) => 
+      sum + (act.transport?.cost || 0), 0);
+    
+    const accommodationCost = day.accommodation_options?.[0]?.cost_per_night || 0;
+    
+    day.dailyTotal = activitiesCost + mealsCost + transportCost + accommodationCost;
+    return day;
+  });
+
+  // Calculate actual totals
+  const totalPerPerson = itinerary.days.reduce((sum, day) => sum + day.dailyTotal, 0);
+  const actualGroupTotal = totalPerPerson * numPeople;
+
+  // Update the cost breakdown
+  const costBreakdown = {
+    activities: itinerary.days.reduce((sum, day) => 
+      sum + day.activities.reduce((actSum, act) => actSum + (act.cost || 0), 0), 0),
+    food: itinerary.days.reduce((sum, day) => 
+      sum + day.meals.reduce((mealSum, meal) => mealSum + (meal.cost || 0), 0), 0),
+    transportation: itinerary.days.reduce((sum, day) => 
+      sum + day.activities.reduce((transSum, act) => 
+        transSum + (act.transport?.cost || 0), 0), 0),
+    accommodation: itinerary.days.reduce((sum, day) => 
+      sum + (day.accommodation_options?.[0]?.cost_per_night || 0), 0)
+  };
+
+  return {
+    ...itinerary,
+    perPersonTotal: totalPerPerson,
+    groupTotal: actualGroupTotal,
+    costBreakdown
+  };
 };

@@ -40,7 +40,7 @@ const AccommodationOptions = ({ options }) => (
 );
 
 // Main component
-const ItineraryDisplay = ({ itinerary }) => {
+const ItineraryDisplay = ({ itinerary, tripData }) => {
   if (!itinerary) return null;
 
   // Filter out empty days
@@ -152,34 +152,40 @@ const ItineraryDisplay = ({ itinerary }) => {
       
       {/* Cost Breakdown */}
       {itinerary.costBreakdown && (
-        <div className="mt-8 pt-6 border-t space-y-2">
+        <div className="mt-8 pt-6 border-t">
+          <h3 className="text-xl font-semibold mb-4">Cost Breakdown (Per Person)</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-3 bg-gray-50 rounded">
-              <div className="text-sm text-gray-600">Accommodation</div>
-              <div className="font-medium">${itinerary.costBreakdown.accommodation}</div>
+              <div className="text-sm text-gray-600">Activities</div>
+              <div className="font-medium">${itinerary.costBreakdown.activities}</div>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded">
               <div className="text-sm text-gray-600">Food</div>
               <div className="font-medium">${itinerary.costBreakdown.food}</div>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded">
-              <div className="text-sm text-gray-600">Activities</div>
-              <div className="font-medium">${itinerary.costBreakdown.activities}</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
               <div className="text-sm text-gray-600">Transportation</div>
               <div className="font-medium">${itinerary.costBreakdown.transportation}</div>
+            </div>
+            <div className="text-center p-3 bg-blue-50 rounded">
+              <div className="text-sm text-blue-600">Per Person Total</div>
+              <div className="font-medium">${itinerary.perPersonTotal}</div>
             </div>
           </div>
         </div>
       )}
 
       {/* Total Cost */}
-      <div className="mt-4 flex justify-between items-center">
-        <span className="text-xl font-semibold">Total Estimated Cost:</span>
-        <span className="text-2xl font-bold text-blue-600">
-          ${itinerary.totalCost}
-        </span>
+      <div className="mt-6 flex flex-col space-y-2">
+        <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
+          <span className="text-xl font-semibold">Total Cost for Group:</span>
+          <span className="text-2xl font-bold text-blue-600">
+            ${itinerary.groupTotal}
+          </span>
+        </div>
+        <div className="text-sm text-gray-500 text-right">
+          Based on {tripData?.numPeople || 1} {(tripData?.numPeople || 1) === 1 ? 'person' : 'people'}
+        </div>
       </div>
     </div>
   );

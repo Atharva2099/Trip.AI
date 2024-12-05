@@ -16,19 +16,28 @@ L.Icon.Default.mergeOptions({
 const TripMap = ({ points = [] }) => {
   const [map, setMap] = useState(null);
   const defaultCenter = [18.5204, 73.8567]; // Default to Pune
-  const center = points.length > 0 
-    ? [points[0].coordinates.lat, points[0].coordinates.lng] 
+  
+  // Filter out points with invalid coordinates
+  const validPoints = points.filter(point => 
+    point?.coordinates?.lat && 
+    point?.coordinates?.lng &&
+    !isNaN(point.coordinates.lat) && 
+    !isNaN(point.coordinates.lng)
+  );
+
+  const center = validPoints.length > 0 
+    ? [validPoints[0].coordinates.lat, validPoints[0].coordinates.lng] 
     : defaultCenter;
 
   useEffect(() => {
-    if (map && points.length > 0) {
-      const bounds = L.latLngBounds(points.map(p => [p.coordinates.lat, p.coordinates.lng]));
+    if (map && validPoints.length > 0) {
+      const bounds = L.latLngBounds(validPoints.map(p => [p.coordinates.lat, p.coordinates.lng]));
       map.fitBounds(bounds);
     }
-  }, [map, points]);
+  }, [map, validPoints]);
 
   useEffect(() => {
-    if (map && points.length > 1) {
+    if (map && validPoints.length > 1) {
       // Clear existing routing control
       map.eachLayer((layer) => {
         if (layer instanceof L.Routing.Control) {
@@ -36,20 +45,34 @@ const TripMap = ({ points = [] }) => {
         }
       });
 
-      const waypoints = points.map(point => 
-        L.latLng(point.coordinates.lat, point.coordinates.lng)
-      );
+      try {
+        const waypoints = validPoints.map(point => 
+          L.latLng(point.coordinates.lat, point.coordinates.lng)
+        );
 
-      L.Routing.control({
-        waypoints,
-        routeWhileDragging: true,
-        show: false,
-        lineOptions: {
-          styles: [{ color: '#6366F1', weight: 3 }]
-        }
-      }).addTo(map);
+        L.Routing.control({
+          waypoints,
+          routeWhileDragging: true,
+          show: false,
+          lineOptions: {
+            styles: [{ color: '#6366F1', weight: 3 }]
+          }
+        }).addTo(map);
+      } catch (error) {
+        console.error('Error setting up route:', error);
+      }
     }
-  }, [map, points]);
+  }, [map, validPoints]);
+
+  if (validPoints.length === 0) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-gray-50 rounded-lg">
+        <div className="text-gray-500 text-center p-4">
+          Generate an itinerary to see the map
+        </div>
+      </div>
+    );
+  }
 
   return (
     <MapContainer 
@@ -62,7 +85,7 @@ const TripMap = ({ points = [] }) => {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; OpenStreetMap contributors'
       />
-      {points.map((point, index) => (
+      {validPoints.map((point, index) => (
         <Marker 
           key={index} 
           position={[point.coordinates.lat, point.coordinates.lng]}

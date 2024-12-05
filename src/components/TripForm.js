@@ -8,6 +8,7 @@ const TripForm = ({ onSubmit, disabled }) => {
       end: ''
     },
     budget: '',
+    numPeople: 1,
     interests: '',
     additionalNotes: ''
   });
@@ -67,18 +68,33 @@ const TripForm = ({ onSubmit, disabled }) => {
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Budget (USD)
-          </label>
-          <input
-            type="number"
-            value={formData.budget}
-            onChange={(e) => setFormData({...formData, budget: e.target.value})}
-            className="w-full p-2 border rounded-md"
-            required
-            min="0"
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Budget (USD)
+            </label>
+            <input
+              type="number"
+              value={formData.budget}
+              onChange={(e) => setFormData({...formData, budget: e.target.value})}
+              className="w-full p-2 border rounded-md"
+              required
+              min="0"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Number of People
+            </label>
+            <input
+              type="number"
+              value={formData.numPeople}
+              onChange={(e) => setFormData({...formData, numPeople: Math.max(1, parseInt(e.target.value) || 1)})}
+              className="w-full p-2 border rounded-md"
+              required
+              min="1"
+            />
+          </div>
         </div>
 
         <div>
