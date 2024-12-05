@@ -1,21 +1,36 @@
-# TripAI
+# Trip.AI 🌍
 
-An AI-powered travel itinerary generator that creates personalized trip plans based on your preferences, including interactive maps and detailed daily schedules.
+An AI-powered travel itinerary generator that creates personalized trip plans based on your preferences, including interactive maps, detailed daily schedules, and cost estimates.
 
-## Features
+![Trip.AI Demo](path_to_your_demo.gif)
+
+## ✨ Features
 
 - Custom itinerary generation based on:
   - Destination
   - Date range
   - Budget
+  - Number of travelers
   - Interests
-- Interactive map with location markers
-- Detailed daily schedules
-- Cost estimates
-- Navigation links for each location
+- Interactive map with location markers and routes
+- Detailed daily schedules with activities and meals
+- Cost estimates and breakdowns
+- Real-time navigation links
 - OpenStreetMap integration
 
-## Setup
+## 🎥 Demo
+
+### Web Application
+![Web Demo](path_to_web_demo.png)
+
+### Interactive Map
+![Map Demo](path_to_map_demo.png)
+
+Watch the full demo video:
+
+[![Trip.AI Demo Video](path_to_video_thumbnail.png)](path_to_your_video)
+
+## 🚀 Setup
 
 1. Clone the repository:
 ```bash
@@ -28,7 +43,7 @@ cd tripai
 npm install
 ```
 
-3. Create a `.env` file in the root directory and add your Groq API key:
+3. Create a `.env` file in the root directory and add your API key:
 ```
 REACT_APP_GROQ_API_KEY=your_api_key_here
 ```
@@ -38,7 +53,7 @@ REACT_APP_GROQ_API_KEY=your_api_key_here
 npm start
 ```
 
-## Technologies Used
+## 🛠️ Technologies Used
 
 - React
 - Tailwind CSS
@@ -46,10 +61,68 @@ npm start
 - Groq API (llama3-8b-8192)
 - OpenStreetMap
 
-## Contributing
+## 📱 Screenshots
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+### Trip Planning Form
+![Trip Form](path_to_form_screenshot.png)
 
-## License
+### Itinerary View
+![Itinerary View](path_to_itinerary_screenshot.png)
 
-[MIT](https://choosealicense.com/licenses/mit/)
+### Cost Breakdown
+![Cost Analysis](path_to_cost_screenshot.png)
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how you can help:
+
+1. Fork the repository
+2. Create a feature branch:
+```bash
+git checkout -b feature/amazing-feature
+```
+3. Commit your changes:
+```bash
+git commit -m 'Add amazing feature'
+```
+4. Push to the branch:
+```bash
+git push origin feature/amazing-feature
+```
+5. Open a Pull Request
+
+## 📝 Adding Screenshots and Videos
+
+To add your own screenshots and videos to this README:
+
+1. Create a `demo` folder in your repository:
+```bash
+mkdir demo
+```
+
+2. Add your media files to the folder:
+- Screenshots: Use PNG or JPG format
+- GIFs: Keep them under 10MB
+- Videos: Host on YouTube/Vimeo and link to them
+
+3. Update the paths in this README to match your media files:
+```markdown
+![Description](demo/your-image.png)
+```
+
+For videos, you can use:
+```markdown
+[![Video Title](demo/thumbnail.png)](https://youtube.com/your-video-link)
+```
+
+
+## 📧 Contact
+
+- GitHub: [@yourusername](https://github.com/yourusername)
+- Twitter: [@yourhandle](https://twitter.com/yourhandle)
+
+---
+
+<p align="center">
+  Made with FullMLAlchemist
+</p>
