@@ -72,49 +72,6 @@ npm start
 ### Cost Breakdown
 ![Cost Analysis](path_to_cost_screenshot.png)
 
-## 🤝 Contributing
-
-We welcome contributions! Here's how you can help:
-
-1. Fork the repository
-2. Create a feature branch:
-```bash
-git checkout -b feature/amazing-feature
-```
-3. Commit your changes:
-```bash
-git commit -m 'Add amazing feature'
-```
-4. Push to the branch:
-```bash
-git push origin feature/amazing-feature
-```
-5. Open a Pull Request
-
-## 📝 Adding Screenshots and Videos
-
-To add your own screenshots and videos to this README:
-
-1. Create a `demo` folder in your repository:
-```bash
-mkdir demo
-```
-
-2. Add your media files to the folder:
-- Screenshots: Use PNG or JPG format
-- GIFs: Keep them under 10MB
-- Videos: Host on YouTube/Vimeo and link to them
-
-3. Update the paths in this README to match your media files:
-```markdown
-![Description](demo/your-image.png)
-```
-
-For videos, you can use:
-```markdown
-[![Video Title](demo/thumbnail.png)](https://youtube.com/your-video-link)
-```
-
 
 ## 📧 Contact
 
