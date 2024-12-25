@@ -1,5 +1,119 @@
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 
+// Helper function to extract all unique events
+const extractUniqueEvents = (itinerary) => {
+  if (!itinerary || !itinerary.days || !Array.isArray(itinerary.days)) {
+    return new Set();
+  }
+
+  const uniqueEvents = new Set();
+  
+  itinerary.days.forEach(day => {
+    if (day.activities && Array.isArray(day.activities)) {
+      day.activities.forEach(activity => {
+        if (activity && activity.name) {
+          uniqueEvents.add(activity.name.toLowerCase());
+        }
+      });
+    }
+    if (day.meals && Array.isArray(day.meals)) {
+      day.meals.forEach(meal => {
+        if (meal && meal.name) {
+          uniqueEvents.add(meal.name.toLowerCase());
+        }
+      });
+    }
+  });
+
+  return uniqueEvents;
+};
+
+const makeGroqRequest = async (messages, temperature = 0.3) => {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.REACT_APP_GROQ_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: "llama3-8b-8192",
+      messages: messages,
+      temperature: temperature,
+      max_tokens: 4000,
+      top_p: 1,
+      response_format: { type: "json_object" }
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    console.error('API Response Error:', errorData);
+    throw new Error(errorData.error?.message || 'Failed to get response from Groq API');
+  }
+
+  const data = await response.json();
+
+  if (!data?.choices?.[0]?.message?.content) {
+    throw new Error("Invalid or empty response from API");
+  }
+
+  let content = data.choices[0].message.content;
+  
+  // Clean up the content
+  try {
+    // Remove any potential markdown code block syntax
+    content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    
+    // Find the first { and last }
+    const firstBrace = content.indexOf('{');
+    const lastBrace = content.lastIndexOf('}');
+    
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error('No valid JSON object found in response');
+    }
+    
+    content = content.slice(firstBrace, lastBrace + 1);
+    
+    // Validate JSON
+    JSON.parse(content);
+    
+    return content;
+  } catch (error) {
+    console.error('JSON Parsing Error:', error);
+    console.error('Raw Content:', content);
+    throw new Error('JSON_PARSE_ERROR');
+  }
+};
+
+// Helper function to validate and adjust costs
+const validateAndAdjustCosts = (itinerary, numPeople) => {
+  let totalPerPerson = 0;
+  let costBreakdown = {};
+
+  itinerary.days = itinerary.days.map(day => {
+    const activitiesCost = day.activities.reduce((sum, act) => sum + (act.cost || 0), 0);
+    const mealsCost = day.meals.reduce((sum, meal) => sum + (meal.cost || 0), 0);
+    const dailyTotal = activitiesCost + mealsCost;
+    
+    totalPerPerson += dailyTotal;
+    costBreakdown[day.date] = dailyTotal;
+    
+    return {
+      ...day,
+      dailyTotal
+    };
+  });
+
+  const actualGroupTotal = totalPerPerson * numPeople;
+
+  return {
+    ...itinerary,
+    perPersonTotal: totalPerPerson,
+    groupTotal: actualGroupTotal,
+    costBreakdown
+  };
+};
+
 export const generateItinerary = async (tripData) => {
   console.log("Starting itinerary generation with data:", tripData);
 
@@ -12,7 +126,15 @@ export const generateItinerary = async (tripData) => {
     const formattedDates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
     const budgetPerPerson = Math.floor(parseInt(tripData.budget) / parseInt(tripData.numPeople || 1));
     
-    const systemPrompt = `You are a travel planning assistant that MUST ONLY respond with valid JSON. Your task is to create realistic daily itineraries with accurate cost breakdowns for ${tripData.numPeople || 1} people. Calculate all costs per person and ensure they sum correctly. Each daily total must include all meals and activities. The final total must accurately reflect the sum of all daily costs multiplied by the number of people. Do not include any explanatory text or markdown formatting. The response must be a pure JSON object and nothing else. Focus only on providing realistic, verified information.`;
+    const systemPrompt = `You are a travel planning assistant that MUST ONLY respond with valid JSON. Your task is to create realistic daily itineraries with accurate cost breakdowns for ${tripData.numPeople || 1} people, ensuring UNIQUE experiences each day. Rules:
+1. Never repeat activities or restaurants across days
+2. If suggesting similar activity types (e.g., temples, museums), each must be distinctly different and noteworthy
+3. Distribute activity types evenly across the trip duration
+4. For longer trips, explore different areas/neighborhoods each day
+5. Maintain variety in cuisine types for meals
+${tripData.interests ? `6. Focus on these interests while maintaining variety: ${tripData.interests}` : ''}
+
+Calculate all costs per person and ensure they sum correctly. Each daily total must include all meals and activities. The final total must accurately reflect the sum of all daily costs multiplied by the number of people.`;
 
     const userPrompt = `Generate a detailed travel itinerary for ${tripData.destination}.
 Trip Details:
@@ -38,116 +160,149 @@ Constraints:
 5. Activities between 8:00-22:00 only
 6. All costs must be per person
 7. Daily totals must include all meals and activities
-8. Final total must be the sum of all daily costs multiplied by ${tripData.numPeople || 1}
+8. Each activity and restaurant must be unique across all days
+9. Final total must be the sum of all daily costs multiplied by ${tripData.numPeople || 1}`;
 
-Respond with only this exact JSON structure:
+    let content;
+    try {
+      content = await makeGroqRequest([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ]);
+    } catch (error) {
+      if (error.message === 'JSON_PARSE_ERROR') {
+        console.log("Retrying with simpler prompt...");
+        const simplifiedUserPrompt = `Generate a travel itinerary for ${tripData.destination} with:
+- ${formattedDates.length} days of activities
+- Budget per person: $${budgetPerPerson}
+- Include breakfast, lunch, and dinner each day
+- 2-3 activities per day
+- All costs must be accurate and within budget
+Response must be valid JSON following this structure for each day:
 {
   "days": [
     {
-      "date": "${formattedDates[0]}",
-      "activities": [
-        {
-          "time": "09:00",
-          "name": "Example Location",
-          "description": "Brief description",
-          "cost": 50,
-          "coordinates": {
-            "lat": 37.7749,
-            "lng": -122.4194
-          },
-          "transport": {
-            "method": "subway",
-            "duration": "20 mins",
-            "cost": 3
-          },
-          "distance": 2.5
-        }
-      ],
-      "meals": [
-        {
-          "type": "breakfast",
-          "time": "08:00",
-          "name": "Restaurant Name",
-          "description": "Cuisine type",
-          "cost": 25
-        }
-      ],
-      "accommodation_options": [
-        {
-          "name": "Hotel Name",
-          "description": "Hotel description",
-          "type": "hotel",
-          "cost_per_night": 150,
-          "distance_to_next_activity": "1.2 km"
-        }
-      ],
-      "dailyTotal": 75
+      "date": "YYYY-MM-DD",
+      "activities": [{"name": "", "time": "", "description": "", "cost": 0, "coordinates": {"lat": 0, "lng": 0}}],
+      "meals": [{"type": "", "time": "", "name": "", "description": "", "cost": 0}]
     }
-  ],
-  "perPersonTotal": 500,
-  "groupTotal": 1000,
-  "costBreakdown": {
-    "activities": 200,
-    "food": 150,
-    "transportation": 150,
-    "accommodation": 0
-  }
+  ]
 }`;
+        
+        content = await makeGroqRequest([
+          { role: "system", content: "You are a travel planning assistant. Only respond with valid JSON." },
+          { role: "user", content: simplifiedUserPrompt }
+        ], 0.2);
+      } else {
+        throw error;
+      }
+    }
 
-    console.log("Sending request to Groq API...");
+    // Function to validate uniqueness
+    const validateUniqueness = (content) => {
+      try {
+        // First check if we can parse the content
+        let itinerary;
+        try {
+          itinerary = JSON.parse(content);
+        } catch (error) {
+          console.error('Failed to parse itinerary:', error);
+          return false;
+        }
     
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.REACT_APP_GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "llama3-8b-8192",
-        messages: [
-          { 
-            role: "system", 
-            content: systemPrompt 
-          },
-          { 
-            role: "user", 
-            content: userPrompt 
+        // Check if itinerary has the expected structure
+        if (!itinerary || !itinerary.days || !Array.isArray(itinerary.days)) {
+          console.error('Invalid itinerary structure');
+          return false;
+        }
+    
+        const uniqueEvents = new Set();
+        const allEvents = [];
+        
+        itinerary.days.forEach(day => {
+          // Check if activities exist and is an array
+          if (day.activities && Array.isArray(day.activities)) {
+            day.activities.forEach(activity => {
+              if (activity && activity.name) {
+                allEvents.push(activity.name.toLowerCase());
+              }
+            });
           }
-        ],
-        temperature: 0.3,
-        max_tokens: 4000,
-        top_p: 1,
-        response_format: { type: "json_object" }
-      })
-    });
+          
+          // Check if meals exist and is an array
+          if (day.meals && Array.isArray(day.meals)) {
+            day.meals.forEach(meal => {
+              if (meal && meal.name) {
+                allEvents.push(meal.name.toLowerCase());
+              }
+            });
+          }
+        });
+    
+        // Add all events to the uniqueEvents Set
+        allEvents.forEach(event => uniqueEvents.add(event));
+    
+        // Compare counts to check for duplicates
+        return uniqueEvents.size === allEvents.length;
+      } catch (error) {
+        console.error('Error in validateUniqueness:', error);
+        return false;
+      }
+    };
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('API Response Error:', errorData);
-      throw new Error(errorData.error?.message || 'Failed to get response from Groq API');
+    // If there are duplicates, regenerate with stronger uniqueness constraints
+    if (!validateUniqueness(content)) {
+      console.log("Detected duplicates, regenerating with stricter constraints...");
+      
+      const uniqueEvents = extractUniqueEvents(JSON.parse(content));
+      const avoidList = Array.from(uniqueEvents).join(', ');
+
+      const retryPrompt = `${userPrompt}\n\nIMPORTANT: Generate completely different activities and restaurants. DO NOT use any of these already used places: ${avoidList}`;
+
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.REACT_APP_GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: "llama3-8b-8192",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: retryPrompt }
+          ],
+          temperature: 0.4,
+          max_tokens: 4000,
+          top_p: 1,
+          response_format: { type: "json_object" }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API Response Error:', errorData);
+        throw new Error(errorData.error?.message || 'Failed to get response from Groq API');
+      }
+
+      const data = await response.json();
+
+      if (!data?.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+        console.error('Invalid API response structure:', data);
+        throw new Error("Invalid response from API");
+      }
+
+      content = data.choices[0].message.content;
     }
 
-    const data = await response.json();
-    console.log("Raw API response:", data);
-
-    if (!data.choices?.[0]?.message?.content) {
-      throw new Error("No content in response");
-    }
-
-    // Clean and parse the response
-    let content = data.choices[0].message.content;
     try {
-      // Remove any non-JSON content
       content = content.substring(
         content.indexOf('{'),
         content.lastIndexOf('}') + 1
       );
       
-      // Parse and validate the response
       const parsedItinerary = JSON.parse(content);
       const validatedItinerary = validateAndAdjustCosts(parsedItinerary, tripData.numPeople || 1);
 
-      // Extract locations for mapping
       const locations = validatedItinerary.days.flatMap(day => [
         ...day.activities.map(activity => ({
           name: activity.name,
@@ -179,42 +334,4 @@ Respond with only this exact JSON structure:
   }
 };
 
-// Helper function to validate and adjust costs
-const validateAndAdjustCosts = (itinerary, numPeople) => {
-  itinerary.days = itinerary.days.map(day => {
-    // Calculate actual daily total including all costs
-    const activitiesCost = day.activities.reduce((sum, act) => sum + (act.cost || 0), 0);
-    const mealsCost = day.meals.reduce((sum, meal) => sum + (meal.cost || 0), 0);
-    const transportCost = day.activities.reduce((sum, act) => 
-      sum + (act.transport?.cost || 0), 0);
-    
-    const accommodationCost = day.accommodation_options?.[0]?.cost_per_night || 0;
-    
-    day.dailyTotal = activitiesCost + mealsCost + transportCost + accommodationCost;
-    return day;
-  });
-
-  // Calculate actual totals
-  const totalPerPerson = itinerary.days.reduce((sum, day) => sum + day.dailyTotal, 0);
-  const actualGroupTotal = totalPerPerson * numPeople;
-
-  // Update the cost breakdown
-  const costBreakdown = {
-    activities: itinerary.days.reduce((sum, day) => 
-      sum + day.activities.reduce((actSum, act) => actSum + (act.cost || 0), 0), 0),
-    food: itinerary.days.reduce((sum, day) => 
-      sum + day.meals.reduce((mealSum, meal) => mealSum + (meal.cost || 0), 0), 0),
-    transportation: itinerary.days.reduce((sum, day) => 
-      sum + day.activities.reduce((transSum, act) => 
-        transSum + (act.transport?.cost || 0), 0), 0),
-    accommodation: itinerary.days.reduce((sum, day) => 
-      sum + (day.accommodation_options?.[0]?.cost_per_night || 0), 0)
-  };
-
-  return {
-    ...itinerary,
-    perPersonTotal: totalPerPerson,
-    groupTotal: actualGroupTotal,
-    costBreakdown
-  };
-};
+export { makeGroqRequest, validateAndAdjustCosts };

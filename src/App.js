@@ -1,3 +1,4 @@
+// src/App.js
 import React, { useState } from 'react';
 import TripForm from './components/TripForm';
 import TripMap from './components/TripMap';
@@ -32,6 +33,26 @@ function App() {
     }
   };
 
+  const handleItineraryUpdate = (updatedItinerary) => {
+    setItinerary(updatedItinerary);
+    
+    // Update map points
+    const newMapPoints = updatedItinerary.days.flatMap(day => [
+      ...day.activities.map(activity => ({
+        name: activity.name,
+        coordinates: activity.coordinates,
+        description: activity.description
+      })),
+      ...day.meals.map(meal => ({
+        name: meal.name,
+        coordinates: meal.coordinates,
+        description: `${meal.type} - ${meal.description}`
+      }))
+    ]);
+    
+    setMapPoints(newMapPoints);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -54,7 +75,13 @@ function App() {
                 <p className="mt-2 text-gray-600">Generating your perfect itinerary...</p>
               </div>
             )}
-            {itinerary && <ItineraryDisplay itinerary={itinerary} />}
+            {itinerary && (
+              <ItineraryDisplay 
+                itinerary={itinerary} 
+                tripData={tripData}
+                onItineraryUpdate={handleItineraryUpdate}
+              />
+            )}
           </div>
           
           <div className="h-[600px] bg-white rounded-lg shadow-lg">
