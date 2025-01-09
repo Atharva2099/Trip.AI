@@ -1,4 +1,4 @@
-# Trip.AI <img src="public/maps1.png" alt="Trip.AI Logo" width="30"/>
+# Trip.AI 
 
 An AI-powered travel itinerary generator that creates personalized trip plans based on your preferences, including interactive maps, detailed daily schedules, and cost estimates.
 
