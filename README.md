@@ -59,7 +59,7 @@ The application will be available at `http://localhost:3000`
 ## 📧 Contact
 
 - Twitter: [@Attharave](https://x.com/attharave)
-- Github: [@FullMLAlchemist](https://x.com/attharave)
+- Github: [@FullMLAlchemist](https://github.com/Atharva2099)
 
 ---
 <p align="center">
