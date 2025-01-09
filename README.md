@@ -63,5 +63,5 @@ The application will be available at `http://localhost:3000`
 
 ---
 <p align="center">
-  Made with ❤️ by FullMLAlchemist
+  Made with ☕️  by FullMLAlchemist
 </p>
