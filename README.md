@@ -19,6 +19,7 @@ Visit [Trip.AI](https://atharva2099.github.io/Trip.AI/) to plan your next advent
 - Cost estimates and breakdowns
 - Real-time navigation links
 - OpenStreetMap integration
+- Interactive customization - chat with the AI to modify any aspect of your itinerary, from restaurants to activity timings, ensuring your plan is perfect for you
 
 ## 🔑 API Setup
 
