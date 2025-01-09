@@ -2,8 +2,6 @@
 
 An AI-powered travel itinerary generator that creates personalized trip plans based on your preferences, including interactive maps, detailed daily schedules, and cost estimates.
 
-![Trip.AI Demo](path_to_your_demo.gif)
-
 ## ✨ Features
 
 - Custom itinerary generation based on:
@@ -18,24 +16,12 @@ An AI-powered travel itinerary generator that creates personalized trip plans ba
 - Real-time navigation links
 - OpenStreetMap integration
 
-## 🎥 Demo
-
-### Web Application
-![Web Demo](path_to_web_demo.png)
-
-### Interactive Map
-![Map Demo](path_to_map_demo.png)
-
-Watch the full demo video:
-
-[![Trip.AI Demo Video](path_to_video_thumbnail.png)](path_to_your_video)
-
 ## 🚀 Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/tripai.git
-cd tripai
+git clone https://github.com/Atharva2099/Trip.AI.git
+cd Trip.AI
 ```
 
 2. Install dependencies:
@@ -43,35 +29,32 @@ cd tripai
 npm install
 ```
 
-3. Create a `.env` file in the root directory and add your API key:
+3. Create a `.env` file in the root directory and add your Groq API key:
 ```
-REACT_APP_GROQ_API_KEY=your_api_key_here
+REACT_APP_GROQ_API_KEY=your_groq_api_key_here
 ```
+
+To get a Groq API key:
+- Visit [Groq's website](https://groq.com)
+- Sign up for an account
+- Generate an API key from your dashboard
 
 4. Start the development server:
 ```bash
 npm start
 ```
 
+The application will be available at `http://localhost:3000`
+
 ## 🛠️ Technologies Used
 
 - React
 - Tailwind CSS
 - Leaflet Maps
-- Groq API (llama3-8b-8192)
+- Groq API (gemma2-9b-it)
 - OpenStreetMap
-
-## 📱 Screenshots
-
-### Trip Planning Form
-![Trip Form](path_to_form_screenshot.png)
-
-### Itinerary View
-![Itinerary View](path_to_itinerary_screenshot.png)
-
-### Cost Breakdown
-![Cost Analysis](path_to_cost_screenshot.png)
-
+- date-fns
+- shadcn/ui components
 
 ## 📧 Contact
 
@@ -79,7 +62,6 @@ npm start
 - Twitter: [@FullMLAlchemist](https://x.com/attharave)
 
 ---
-
 <p align="center">
-  Made with FullMLAlchemist
+  Made with ❤️ by FullMLAlchemist
 </p>
