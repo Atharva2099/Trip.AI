@@ -69,13 +69,9 @@ The application will be available at `http://localhost:3000`
 - Free tier limits apply based on your Groq account
 - Keep your API key secure and never share it
 
-## 📧 Contact
-
-- GitHub: [@Attharave](https://github.com/Atharva2099 # Trip.AI <img src="public/maps1.png" alt="Trip.AI Logo" width="30"/>
+## 🚀 Try It Now!
 
 An AI-powered travel itinerary generator that creates personalized trip plans based on your preferences, including interactive maps, detailed daily schedules, and cost estimates.
-
-## 🚀 Try It Now!
 
 Visit [Trip.AI](https://atharva2099.github.io/Trip.AI/) to plan your next adventure. You'll need a Groq API key to get started - get one for free at [Groq Console](https://console.groq.com/keys).
 
