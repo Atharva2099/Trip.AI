@@ -12,10 +12,12 @@ const TripForm = ({ onSubmit, disabled }) => {
     interests: '',
     additionalNotes: ''
   });
+  
+  const [apiKey, setApiKey] = useState(localStorage.getItem('groq_api_key') || '');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    onSubmit({ ...formData, apiKey });
   };
 
   return (
@@ -120,6 +122,31 @@ const TripForm = ({ onSubmit, disabled }) => {
             className="w-full p-2 border rounded-md"
             rows="3"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Groq API Key
+            <span className="ml-1 text-xs text-blue-600">
+              <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">
+                Get your key
+              </a>
+            </span>
+          </label>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => {
+              setApiKey(e.target.value);
+              localStorage.setItem('groq_api_key', e.target.value);
+            }}
+            className="w-full p-2 border rounded-md"
+            placeholder="gsk_..."
+            required
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Your API key is stored locally and never sent to our servers
+          </p>
         </div>
 
         <button 
