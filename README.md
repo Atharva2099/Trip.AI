@@ -52,11 +52,11 @@ npm start
 
 The application will be available at `http://localhost:3000`
 
-4. Create a .env file and add your API key using the env variable
+4. Create a .env file and add your API key using the env variable (No spaces):
 ```Text
 REACT_APP_GROQ_API_KEY=
 ```
-No spaces
+
 
 ## 💻 Technologies Used
 
