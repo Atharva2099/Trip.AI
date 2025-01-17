@@ -1,19 +1,23 @@
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 
-const makeGroqRequest = async (messages) => {
+const makeGroqRequest = async (messages, temperature = 0.3, apiKey) => {
+  if (!apiKey) {
+    throw new Error('Please provide a valid Groq API key');
+  }
+
   try {
     console.log('Making API request with messages:', messages);
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.REACT_APP_GROQ_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model: "llama3-8b-8192",
         messages: messages,
-        temperature: 0.4,
+        temperature: temperature,
         max_tokens: 4000,
         top_p: 1,
         response_format: { type: "json_object" }
@@ -21,6 +25,9 @@ const makeGroqRequest = async (messages) => {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Invalid API key. Please check your Groq API key and try again.');
+      }
       const errorData = await response.json().catch(() => ({}));
       console.error('API Error:', errorData);
       throw new Error(errorData.error?.message || 'Failed to get response from API');
@@ -35,7 +42,44 @@ const makeGroqRequest = async (messages) => {
   }
 };
 
+const validateAndAdjustCosts = (itinerary, numPeople) => {
+  let totalPerPerson = 0;
+  let costBreakdown = {
+    activities: 0,
+    food: 0,
+    transportation: 0
+  };
+
+  itinerary.days = itinerary.days.map(day => {
+    const activitiesCost = day.activities.reduce((sum, act) => sum + (act.cost || 0), 0);
+    const mealsCost = day.meals.reduce((sum, meal) => sum + (meal.cost || 0), 0);
+    const transportCost = day.activities.reduce((sum, act) => sum + (act.transport?.cost || 0), 0);
+    
+    costBreakdown.activities += activitiesCost;
+    costBreakdown.food += mealsCost;
+    costBreakdown.transportation += transportCost;
+    
+    const dailyTotal = activitiesCost + mealsCost + transportCost;
+    totalPerPerson += dailyTotal;
+    
+    return {
+      ...day,
+      dailyTotal
+    };
+  });
+
+  return {
+    ...itinerary,
+    costBreakdown,
+    perPersonTotal: totalPerPerson,
+    groupTotal: totalPerPerson * numPeople
+  };
+};
+
 export const generateItinerary = async (tripData) => {
+  // Extract API key from tripData
+  const { apiKey, ...restTripData } = tripData;
+
   try {
     console.log('Generating itinerary with trip data:', tripData);
 
@@ -46,8 +90,8 @@ export const generateItinerary = async (tripData) => {
 
     // Validate dates
     const dateRange = eachDayOfInterval({
-      start: parseISO(tripData.dates.start),
-      end: parseISO(tripData.dates.end)
+      start: parseISO(restTripData.dates.start),
+      end: parseISO(restTripData.dates.end)
     });
 
     if (!dateRange || dateRange.length === 0) {
@@ -59,7 +103,7 @@ export const generateItinerary = async (tripData) => {
     }
 
     const formattedDates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
-    const budgetPerPerson = Math.floor(parseInt(tripData.budget) / parseInt(tripData.numPeople || 1));
+    const budgetPerPerson = Math.floor(parseInt(restTripData.budget) / parseInt(restTripData.numPeople || 1));
 
     if (budgetPerPerson < 50) {
       throw new Error('Budget too low: Minimum $50 per person per day required');
@@ -88,14 +132,7 @@ export const generateItinerary = async (tripData) => {
           cost: 20
         }],
         dailyTotal: 80
-      }],
-      costBreakdown: {
-        activities: 50,
-        food: 20,
-        transportation: 10
-      },
-      perPersonTotal: 80,
-      groupTotal: 80
+      }]
     };
 
     const systemPrompt = `As a travel planning assistant, generate a detailed itinerary in JSON format. Follow this EXACT structure (replace sample values):
@@ -103,17 +140,17 @@ ${JSON.stringify(template, null, 2)}
 
 Important requirements:
 1. All JSON must be valid and match the template structure exactly
-2. All costs must be realistic for ${tripData.destination}
+2. All costs must be realistic for ${restTripData.destination}
 3. All locations must be real and verifiable
 4. Activities must be between 8:00-22:00
 5. Include exact coordinates for each location
 6. No duplicate activities or restaurants`;
 
-    const userPrompt = `Create a ${formattedDates.length}-day itinerary for ${tripData.destination}:
+    const userPrompt = `Create a ${formattedDates.length}-day itinerary for ${restTripData.destination}:
 - Budget per person: $${budgetPerPerson}
 - Dates: ${formattedDates.join(', ')}
-- Number of people: ${tripData.numPeople}
-- Interests: ${tripData.interests || 'general sightseeing'}
+- Number of people: ${restTripData.numPeople}
+- Interests: ${restTripData.interests || 'general sightseeing'}
 
 Requirements:
 1. Each day needs 2-3 activities and 3 meals (breakfast, lunch, dinner)
@@ -129,12 +166,12 @@ Return ONLY valid JSON matching the template structure exactly.`;
     const content = await makeGroqRequest([
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt }
-    ]);
+    ], 0.3, apiKey);
 
     console.log('Received content from API:', content);
 
     try {
-      // Clean up the response
+      // Clean up the content
       const cleanContent = content
         .replace(/```json\n?/g, '')
         .replace(/```\n?/g, '')
@@ -150,75 +187,7 @@ Return ONLY valid JSON matching the template structure exactly.`;
       }
 
       const parsedContent = JSON.parse(jsonMatch[0]);
-      console.log('Parsed content:', parsedContent);
-
-      // Validate the structure
-      if (!parsedContent.days || !Array.isArray(parsedContent.days)) {
-        console.error('Invalid structure:', parsedContent);
-        throw new Error('Invalid itinerary structure: Missing or invalid days array');
-      }
-
-      // Ensure all required fields are present
-      parsedContent.days = parsedContent.days.map((day, index) => ({
-        date: formattedDates[index],
-        activities: day.activities.map(activity => ({
-          name: activity.name,
-          time: activity.time,
-          description: activity.description,
-          cost: parseFloat(activity.cost),
-          coordinates: {
-            lat: parseFloat(activity.coordinates.lat),
-            lng: parseFloat(activity.coordinates.lng)
-          },
-          transport: {
-            method: activity.transport?.method || "walking",
-            duration: activity.transport?.duration || "10 min",
-            cost: parseFloat(activity.transport?.cost || 0)
-          }
-        })),
-        meals: day.meals.map(meal => ({
-          type: meal.type,
-          time: meal.time,
-          name: meal.name,
-          description: meal.description,
-          cost: parseFloat(meal.cost)
-        })),
-        dailyTotal: day.dailyTotal || 0
-      }));
-
-      // Calculate totals and breakdowns
-      let totalActivities = 0;
-      let totalFood = 0;
-      let totalTransport = 0;
-
-      parsedContent.days.forEach(day => {
-        day.activities.forEach(activity => {
-          totalActivities += activity.cost;
-          totalTransport += activity.transport.cost;
-        });
-        day.meals.forEach(meal => {
-          totalFood += meal.cost;
-        });
-      });
-
-      const perPersonTotal = totalActivities + totalFood + totalTransport;
-      const groupTotal = perPersonTotal * tripData.numPeople;
-
-      // Validate against budget
-      if (perPersonTotal > budgetPerPerson) {
-        throw new Error(`Generated itinerary exceeds budget: $${perPersonTotal} per person vs budget of $${budgetPerPerson}`);
-      }
-
-      const validatedItinerary = {
-        ...parsedContent,
-        costBreakdown: {
-          activities: totalActivities,
-          food: totalFood,
-          transportation: totalTransport
-        },
-        perPersonTotal,
-        groupTotal
-      };
+      const validatedItinerary = validateAndAdjustCosts(parsedContent, restTripData.numPeople);
 
       // Extract locations for map
       const locations = validatedItinerary.days.flatMap(day => 
@@ -241,12 +210,12 @@ Return ONLY valid JSON matching the template structure exactly.`;
       throw new Error(`Failed to parse itinerary: ${parseError.message}`);
     }
   } catch (error) {
-    console.error('Generation Error:', error);
-    if (error.message.includes('API request failed')) {
-      throw new Error('Unable to connect to the AI service. Please check your internet connection and try again.');
+    if (error.message.includes('API key')) {
+      throw new Error('API Key Error: ' + error.message);
     }
+    console.error('Generation Error:', error);
     throw new Error(`Failed to generate valid itinerary: ${error.message}`);
   }
 };
 
-export default generateItinerary;
+export { makeGroqRequest, validateAndAdjustCosts };
