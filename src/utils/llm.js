@@ -6,6 +6,8 @@ const makeGroqRequest = async (messages, temperature = 0.3, apiKey) => {
   }
 
   try {
+    console.log('Making API request with messages:', messages);
+
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -13,11 +15,12 @@ const makeGroqRequest = async (messages, temperature = 0.3, apiKey) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gemma2-9b-it",
+        model: "llama3-8b-8192",
         messages: messages,
         temperature: temperature,
         max_tokens: 4000,
-        top_p: 1
+        top_p: 1,
+        response_format: { type: "json_object" }
       })
     });
 
@@ -25,10 +28,13 @@ const makeGroqRequest = async (messages, temperature = 0.3, apiKey) => {
       if (response.status === 401) {
         throw new Error('Invalid API key. Please check your Groq API key and try again.');
       }
-      throw new Error('Failed to get response from Groq API');
+      const errorData = await response.json().catch(() => ({}));
+      console.error('API Error:', errorData);
+      throw new Error(errorData.error?.message || 'Failed to get response from API');
     }
 
     const data = await response.json();
+    console.log('API Response:', data);
     return data.choices[0].message.content;
   } catch (error) {
     console.error('API Request Error:', error);
@@ -75,15 +81,70 @@ export const generateItinerary = async (tripData) => {
   const { apiKey, ...restTripData } = tripData;
 
   try {
+    console.log('Generating itinerary with trip data:', tripData);
+
+    // Validate required fields
+    if (!tripData.destination || !tripData.dates?.start || !tripData.dates?.end || !tripData.budget) {
+      throw new Error('Missing required trip data: Please fill in destination, dates, and budget');
+    }
+
+    // Validate dates
     const dateRange = eachDayOfInterval({
       start: parseISO(restTripData.dates.start),
       end: parseISO(restTripData.dates.end)
     });
 
+    if (!dateRange || dateRange.length === 0) {
+      throw new Error('Invalid date range: Please select valid travel dates');
+    }
+
+    if (dateRange.length > 14) {
+      throw new Error('Trip duration too long: Maximum 14 days supported');
+    }
+
     const formattedDates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
     const budgetPerPerson = Math.floor(parseInt(restTripData.budget) / parseInt(restTripData.numPeople || 1));
 
-    const systemPrompt = `You are a travel planning assistant that MUST ONLY respond with valid JSON. Create realistic daily itineraries ensuring UNIQUE experiences each day.`;
+    if (budgetPerPerson < 50) {
+      throw new Error('Budget too low: Minimum $50 per person per day required');
+    }
+
+    const template = {
+      days: [{
+        date: formattedDates[0],
+        activities: [{
+          name: "Sample Activity",
+          time: "09:00",
+          description: "Activity description",
+          cost: 50,
+          coordinates: { lat: 0, lng: 0 },
+          transport: {
+            method: "taxi",
+            duration: "20 min",
+            cost: 10
+          }
+        }],
+        meals: [{
+          type: "breakfast",
+          time: "08:00",
+          name: "Sample Restaurant",
+          description: "Restaurant description",
+          cost: 20
+        }],
+        dailyTotal: 80
+      }]
+    };
+
+    const systemPrompt = `As a travel planning assistant, generate a detailed itinerary in JSON format. Follow this EXACT structure (replace sample values):
+${JSON.stringify(template, null, 2)}
+
+Important requirements:
+1. All JSON must be valid and match the template structure exactly
+2. All costs must be realistic for ${restTripData.destination}
+3. All locations must be real and verifiable
+4. Activities must be between 8:00-22:00
+5. Include exact coordinates for each location
+6. No duplicate activities or restaurants`;
 
     const userPrompt = `Create a ${formattedDates.length}-day itinerary for ${restTripData.destination}:
 - Budget per person: $${budgetPerPerson}
@@ -91,54 +152,38 @@ export const generateItinerary = async (tripData) => {
 - Number of people: ${restTripData.numPeople}
 - Interests: ${restTripData.interests || 'general sightseeing'}
 
-Required format:
-{
-  "days": [
-    {
-      "date": "YYYY-MM-DD",
-      "activities": [
-        {
-          "name": "Activity name",
-          "time": "HH:MM",
-          "description": "Activity description",
-          "cost": number,
-          "coordinates": { "lat": number, "lng": number },
-          "transport": {
-            "method": "transport type",
-            "duration": "duration",
-            "cost": number
-          }
-        }
-      ],
-      "meals": [
-        {
-          "type": "breakfast|lunch|dinner",
-          "time": "HH:MM",
-          "name": "Restaurant name",
-          "description": "Description",
-          "cost": number
-        }
-      ]
-    }
-  ]
-}`;
+Requirements:
+1. Each day needs 2-3 activities and 3 meals (breakfast, lunch, dinner)
+2. Include exact coordinates for each activity
+3. All activities between 8:00-22:00
+4. Include transport details between locations
+5. Stay within budget
+6. No duplicate activities or restaurants
+
+Return ONLY valid JSON matching the template structure exactly.`;
+
+    console.log('Sending prompts to API');
+    const content = await makeGroqRequest([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ], 0.3, apiKey);
+
+    console.log('Received content from API:', content);
 
     try {
-      const content = await makeGroqRequest([
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ], 0.3, apiKey);
-
       // Clean up the content
       const cleanContent = content
         .replace(/```json\n?/g, '')
         .replace(/```\n?/g, '')
         .trim();
 
-      // Extract JSON object
+      console.log('Cleaned content:', cleanContent);
+
+      // Extract JSON
       const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error('No valid JSON found in response');
+        console.error('No JSON object found in content:', content);
+        throw new Error('Invalid response format: No JSON object found');
       }
 
       const parsedContent = JSON.parse(jsonMatch[0]);
@@ -153,21 +198,23 @@ Required format:
         }))
       );
 
+      console.log('Successfully generated itinerary');
       return {
         itinerary: validatedItinerary,
         locations
       };
 
-    } catch (error) {
-      console.error('Parsing Error:', error);
-      throw new Error('Failed to generate valid itinerary. Please try again.');
+    } catch (parseError) {
+      console.error('Parsing Error:', parseError);
+      console.error('Raw Content:', content);
+      throw new Error(`Failed to parse itinerary: ${parseError.message}`);
     }
   } catch (error) {
     if (error.message.includes('API key')) {
       throw new Error('API Key Error: ' + error.message);
     }
     console.error('Generation Error:', error);
-    throw error;
+    throw new Error(`Failed to generate valid itinerary: ${error.message}`);
   }
 };
 

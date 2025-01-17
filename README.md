@@ -1,8 +1,10 @@
-# Trip.AI 🌍
+# Trip.AI 
 
 An AI-powered travel itinerary generator that creates personalized trip plans based on your preferences, including interactive maps, detailed daily schedules, and cost estimates.
 
-![Trip.AI Demo](path_to_your_demo.gif)
+## 🚀 Try It Now!
+
+Visit [Trip.AI](https://atharva2099.github.io/Trip.AI/) to plan your next adventure. You'll need a Groq API key to get started - get one for free at [Groq Console](https://console.groq.com/keys).
 
 ## ✨ Features
 
@@ -17,25 +19,25 @@ An AI-powered travel itinerary generator that creates personalized trip plans ba
 - Cost estimates and breakdowns
 - Real-time navigation links
 - OpenStreetMap integration
+- Interactive customization - chat with the AI to modify any aspect of your itinerary, from restaurants to activity timings, ensuring your plan is perfect for you
 
-## 🎥 Demo
+## 🔑 API Setup
 
-### Web Application
-![Web Demo](path_to_web_demo.png)
+Trip.AI uses the Groq API for generating travel itineraries. To use the application:
 
-### Interactive Map
-![Map Demo](path_to_map_demo.png)
+1. Visit [Groq Console](https://console.groq.com/keys)
+2. Sign up for an account
+3. Generate a new API key
+4. Use the key in the application when creating itineraries
 
-Watch the full demo video:
+Your API key is stored locally in your browser and is never sent to our servers. This ensures you have full control over your API usage and costs.
 
-[![Trip.AI Demo Video](path_to_video_thumbnail.png)](path_to_your_video)
-
-## 🚀 Setup
+## 🛠️ Local Development Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/tripai.git
-cd tripai
+git clone https://github.com/Atharva2099/Trip.AI.git
+cd Trip.AI
 ```
 
 2. Install dependencies:
@@ -43,43 +45,46 @@ cd tripai
 npm install
 ```
 
-3. Create a `.env` file in the root directory and add your API key:
-```
-REACT_APP_GROQ_API_KEY=your_api_key_here
-```
-
-4. Start the development server:
+3. Start the development server:
 ```bash
 npm start
 ```
 
-## 🛠️ Technologies Used
+The application will be available at `http://localhost:3000`
+
+4. Create a .env file and add your API key using the env variable (No spaces):
+```Text
+REACT_APP_GROQ_API_KEY=
+```
+
+
+## 💻 Technologies Used
 
 - React
 - Tailwind CSS
 - Leaflet Maps
-- Groq API (llama3-8b-8192)
+- Groq API (gemma2-9b-it)
 - OpenStreetMap
+- date-fns
+- shadcn/ui components
 
-## 📱 Screenshots
+## 📝 Usage Notes
 
-### Trip Planning Form
-![Trip Form](path_to_form_screenshot.png)
-
-### Itinerary View
-![Itinerary View](path_to_itinerary_screenshot.png)
-
-### Cost Breakdown
-![Cost Analysis](path_to_cost_screenshot.png)
-
+- Each itinerary generation requires one API call to Groq
+- Monitor your API usage in your Groq console
+- Free tier limits apply based on your Groq account
+- Keep your API key secure and never share it
 
 ## 📧 Contact
 
-- GitHub: [@Attharave](https://github.com/Atharva2099)
-- Twitter: [@FullMLAlchemist](https://x.com/attharave)
+- GitHub: [@FullMLAlchemist](https://github.com/Atharva2099)
+- Twitter: [@Attharave](https://x.com/attharave)
 
 ---
+<p align="center">
+  Made with ☕️  by FullMLAlchemist
+</p>
 
 <p align="center">
-  Made with FullMLAlchemist
-</p>
+  <small>Location icons created by Freepik - Flaticon</small>
+</p>)
