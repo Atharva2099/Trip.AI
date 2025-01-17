@@ -2,6 +2,8 @@ import { format, eachDayOfInterval, parseISO } from 'date-fns';
 
 const makeGroqRequest = async (messages) => {
   try {
+    console.log('Making API request with messages:', messages);
+
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -9,20 +11,23 @@ const makeGroqRequest = async (messages) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gemma2-9b-it",
+        model: "llama3-8b-8192",
         messages: messages,
-        temperature: 0.7,
+        temperature: 0.4,
         max_tokens: 4000,
-        top_p: 1
+        top_p: 1,
+        response_format: { type: "json_object" }
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('API Error:', errorData);
       throw new Error(errorData.error?.message || 'Failed to get response from API');
     }
 
     const data = await response.json();
+    console.log('API Response:', data);
     return data.choices[0].message.content;
   } catch (error) {
     console.error('API Request Error:', error);
@@ -32,13 +37,33 @@ const makeGroqRequest = async (messages) => {
 
 export const generateItinerary = async (tripData) => {
   try {
+    console.log('Generating itinerary with trip data:', tripData);
+
+    // Validate required fields
+    if (!tripData.destination || !tripData.dates?.start || !tripData.dates?.end || !tripData.budget) {
+      throw new Error('Missing required trip data: Please fill in destination, dates, and budget');
+    }
+
+    // Validate dates
     const dateRange = eachDayOfInterval({
       start: parseISO(tripData.dates.start),
       end: parseISO(tripData.dates.end)
     });
 
+    if (!dateRange || dateRange.length === 0) {
+      throw new Error('Invalid date range: Please select valid travel dates');
+    }
+
+    if (dateRange.length > 14) {
+      throw new Error('Trip duration too long: Maximum 14 days supported');
+    }
+
     const formattedDates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
     const budgetPerPerson = Math.floor(parseInt(tripData.budget) / parseInt(tripData.numPeople || 1));
+
+    if (budgetPerPerson < 50) {
+      throw new Error('Budget too low: Minimum $50 per person per day required');
+    }
 
     const template = {
       days: [{
@@ -74,7 +99,15 @@ export const generateItinerary = async (tripData) => {
     };
 
     const systemPrompt = `As a travel planning assistant, generate a detailed itinerary in JSON format. Follow this EXACT structure (replace sample values):
-${JSON.stringify(template, null, 2)}`;
+${JSON.stringify(template, null, 2)}
+
+Important requirements:
+1. All JSON must be valid and match the template structure exactly
+2. All costs must be realistic for ${tripData.destination}
+3. All locations must be real and verifiable
+4. Activities must be between 8:00-22:00
+5. Include exact coordinates for each location
+6. No duplicate activities or restaurants`;
 
     const userPrompt = `Create a ${formattedDates.length}-day itinerary for ${tripData.destination}:
 - Budget per person: $${budgetPerPerson}
@@ -90,12 +123,15 @@ Requirements:
 5. Stay within budget
 6. No duplicate activities or restaurants
 
-Return ONLY valid JSON matching the structure shown.`;
+Return ONLY valid JSON matching the template structure exactly.`;
 
+    console.log('Sending prompts to API');
     const content = await makeGroqRequest([
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt }
     ]);
+
+    console.log('Received content from API:', content);
 
     try {
       // Clean up the response
@@ -104,17 +140,22 @@ Return ONLY valid JSON matching the structure shown.`;
         .replace(/```\n?/g, '')
         .trim();
 
+      console.log('Cleaned content:', cleanContent);
+
       // Extract JSON
       const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error('No JSON object found in response');
+        console.error('No JSON object found in content:', content);
+        throw new Error('Invalid response format: No JSON object found');
       }
 
       const parsedContent = JSON.parse(jsonMatch[0]);
+      console.log('Parsed content:', parsedContent);
 
       // Validate the structure
       if (!parsedContent.days || !Array.isArray(parsedContent.days)) {
-        throw new Error('Invalid itinerary structure');
+        console.error('Invalid structure:', parsedContent);
+        throw new Error('Invalid itinerary structure: Missing or invalid days array');
       }
 
       // Ensure all required fields are present
@@ -163,6 +204,11 @@ Return ONLY valid JSON matching the structure shown.`;
       const perPersonTotal = totalActivities + totalFood + totalTransport;
       const groupTotal = perPersonTotal * tripData.numPeople;
 
+      // Validate against budget
+      if (perPersonTotal > budgetPerPerson) {
+        throw new Error(`Generated itinerary exceeds budget: $${perPersonTotal} per person vs budget of $${budgetPerPerson}`);
+      }
+
       const validatedItinerary = {
         ...parsedContent,
         costBreakdown: {
@@ -183,19 +229,23 @@ Return ONLY valid JSON matching the structure shown.`;
         }))
       );
 
+      console.log('Successfully generated itinerary');
       return {
         itinerary: validatedItinerary,
         locations
       };
 
-    } catch (error) {
-      console.error('Parsing Error:', error);
+    } catch (parseError) {
+      console.error('Parsing Error:', parseError);
       console.error('Raw Content:', content);
-      throw new Error('Failed to parse itinerary');
+      throw new Error(`Failed to parse itinerary: ${parseError.message}`);
     }
   } catch (error) {
     console.error('Generation Error:', error);
-    throw new Error('Failed to generate valid itinerary. Please try again.');
+    if (error.message.includes('API request failed')) {
+      throw new Error('Unable to connect to the AI service. Please check your internet connection and try again.');
+    }
+    throw new Error(`Failed to generate valid itinerary: ${error.message}`);
   }
 };
 
