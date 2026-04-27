@@ -79,7 +79,7 @@ const AccommodationOptions = ({ options }) => (
   </div>
 );
 
-const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate }) => {
+const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, model }) => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isEventChatOpen, setIsEventChatOpen] = useState(false);
   const [isActivity, setIsActivity] = useState(true);
@@ -304,7 +304,9 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate }) => {
     <EventChat
       event={selectedEvent}
       isActivity={isActivity}
-      currentItinerary={itinerary}  // Add this line
+      currentItinerary={itinerary}
+      apiKey={apiKey}
+      model={model}
       onClose={() => {
         setIsEventChatOpen(false);
         setSelectedEvent(null);

@@ -4,7 +4,7 @@ An AI-powered travel itinerary generator that creates personalized trip plans ba
 
 ## 🚀 Try It Now!
 
-Visit [Trip.AI](https://atharva2099.github.io/Trip.AI/) to plan your next adventure. You'll need a Groq API key to get started - get one for free at [Groq Console](https://console.groq.com/keys).
+Visit [Trip.AI](https://atharva2099.github.io/Trip.AI/) to plan your next adventure. You'll need an OpenRouter API key to get started - get one for free at [OpenRouter](https://openrouter.ai/keys).
 
 ## ✨ Features
 
@@ -20,17 +20,34 @@ Visit [Trip.AI](https://atharva2099.github.io/Trip.AI/) to plan your next advent
 - Real-time navigation links
 - OpenStreetMap integration
 - Interactive customization - chat with the AI to modify any aspect of your itinerary, from restaurants to activity timings, ensuring your plan is perfect for you
+- **Multiple AI models** - choose from Kimi, Mistral, MiniMax, DeepSeek, Claude, and more via OpenRouter
 
 ## 🔑 API Setup
 
-Trip.AI uses the Groq API for generating travel itineraries. To use the application:
+Trip.AI uses the OpenRouter API for generating travel itineraries. To use the application:
 
-1. Visit [Groq Console](https://console.groq.com/keys)
+1. Visit [OpenRouter](https://openrouter.ai/keys)
 2. Sign up for an account
 3. Generate a new API key
 4. Use the key in the application when creating itineraries
 
 Your API key is stored locally in your browser and is never sent to our servers. This ensures you have full control over your API usage and costs.
+
+### Supported Models
+
+Choose the AI model that best fits your needs:
+
+| Model ID | Provider | Notes |
+|----------|----------|-------|
+| `moonshotai/kimi-k2.6` | Moonshot AI | Great reasoning, default choice |
+| `deepseek/deepseek-v4-pro` | DeepSeek | Excellent reasoning and coding |
+| `deepseek/deepseek-v4-flash` | DeepSeek | Fast, cost-effective |
+| `xiaomi/mimo-v2.5-pro` | Xiaomi | Strong general performance |
+| `mistralai/mistral-large-2512` | Mistral | Strong multilingual performance |
+| `mistralai/mistral-small-2603` | Mistral | Fast, efficient |
+| `anthropic/claude-sonnet-4.6` | Anthropic | Top-tier instruction following |
+| `google/gemma-4-31b-it:free` | Google | Free tier available |
+| `google/gemma-4-26b-a4b-it:free` | Google | Free tier available |
 
 ## 🛠️ Local Development Setup
 
@@ -54,7 +71,7 @@ The application will be available at `http://localhost:3000`
 
 4. Create a .env file and add your API key using the env variable (No spaces):
 ```Text
-REACT_APP_GROQ_API_KEY=
+REACT_APP_OPENROUTER_API_KEY=
 ```
 
 
@@ -63,16 +80,16 @@ REACT_APP_GROQ_API_KEY=
 - React
 - Tailwind CSS
 - Leaflet Maps
-- Groq API (gemma2-9b-it)
+- OpenRouter API (Kimi, Mistral, MiniMax, DeepSeek, Claude, Gemma)
 - OpenStreetMap
 - date-fns
 - shadcn/ui components
 
 ## 📝 Usage Notes
 
-- Each itinerary generation requires one API call to Groq
-- Monitor your API usage in your Groq console
-- Free tier limits apply based on your Groq account
+- Each itinerary generation requires one API call to OpenRouter
+- Monitor your API usage and credits in your [OpenRouter dashboard](https://openrouter.ai/settings/credits)
+- Free tier limits apply based on your OpenRouter account and the model chosen
 - Keep your API key secure and never share it
 
 ## 📧 Contact

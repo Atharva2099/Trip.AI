@@ -1,42 +1,80 @@
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 
-const makeGroqRequest = async (messages, temperature = 0.3, apiKey) => {
-  if (!apiKey) {
-    throw new Error('Please provide a valid Groq API key');
+const FALLBACK_MODEL = 'moonshotai/kimi-k2.6';
+
+const getOpenRouterErrorMessage = (status, errorData) => {
+  switch (status) {
+    case 401:
+      return 'Invalid API key. Please check your OpenRouter API key and try again.';
+    case 429:
+      return 'Too many requests. Wait a moment and try again.';
+    case 402:
+      return 'Your OpenRouter account is out of credits. Please top up at openrouter.ai.';
+    case 408:
+    case 504:
+      return 'The model is taking too long. Try DeepSeek V4 Flash for faster results.';
+    case 404:
+      return `Model temporarily unavailable.`;
+    default:
+      return errorData.error?.message || `Failed to get response from API (HTTP ${status})`;
   }
+};
+
+const makeOpenRouterRequest = async (messages, temperature = 0.3, apiKey, model, useFallback = true) => {
+  if (!apiKey) {
+    throw new Error('Please provide a valid OpenRouter API key');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
   try {
     console.log('Making API request with messages:', messages);
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'Trip.AI'
       },
       body: JSON.stringify({
-        model: "llama3-8b-8192",
+        model: model || FALLBACK_MODEL,
         messages: messages,
         temperature: temperature,
         max_tokens: 4000,
         top_p: 1,
+        include_reasoning: false,
         response_format: { type: "json_object" }
       })
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Invalid API key. Please check your Groq API key and try again.');
-      }
       const errorData = await response.json().catch(() => ({}));
       console.error('API Error:', errorData);
-      throw new Error(errorData.error?.message || 'Failed to get response from API');
+      const message = getOpenRouterErrorMessage(response.status, errorData);
+
+      // Auto-fallback to default model if selected model is unavailable
+      if (response.status === 404 && useFallback && model && model !== FALLBACK_MODEL) {
+        console.warn(`Model ${model} unavailable. Falling back to ${FALLBACK_MODEL}`);
+        return makeOpenRouterRequest(messages, temperature, apiKey, FALLBACK_MODEL, false);
+      }
+
+      throw new Error(message);
     }
 
     const data = await response.json();
     console.log('API Response:', data);
     return data.choices[0].message.content;
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out after 30 seconds. The model may be overloaded. Please try again or switch to a faster model.');
+    }
     console.error('API Request Error:', error);
     throw error;
   }
@@ -77,8 +115,8 @@ const validateAndAdjustCosts = (itinerary, numPeople) => {
 };
 
 export const generateItinerary = async (tripData) => {
-  // Extract API key from tripData
-  const { apiKey, ...restTripData } = tripData;
+  // Extract API key and model from tripData
+  const { apiKey, model, ...restTripData } = tripData;
 
   try {
     console.log('Generating itinerary with trip data:', tripData);
@@ -89,9 +127,16 @@ export const generateItinerary = async (tripData) => {
     }
 
     // Validate dates
+    const startDate = parseISO(restTripData.dates.start);
+    const endDate = parseISO(restTripData.dates.end);
+
+    if (startDate > endDate) {
+      throw new Error('Invalid date range: End date must be on or after the start date');
+    }
+
     const dateRange = eachDayOfInterval({
-      start: parseISO(restTripData.dates.start),
-      end: parseISO(restTripData.dates.end)
+      start: startDate,
+      end: endDate
     });
 
     if (!dateRange || dateRange.length === 0) {
@@ -163,10 +208,10 @@ Requirements:
 Return ONLY valid JSON matching the template structure exactly.`;
 
     console.log('Sending prompts to API');
-    const content = await makeGroqRequest([
+    const content = await makeOpenRouterRequest([
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt }
-    ], 0.3, apiKey);
+    ], 0.3, apiKey, model);
 
     console.log('Received content from API:', content);
 
@@ -218,4 +263,4 @@ Return ONLY valid JSON matching the template structure exactly.`;
   }
 };
 
-export { makeGroqRequest, validateAndAdjustCosts };
+export { makeOpenRouterRequest, validateAndAdjustCosts };
