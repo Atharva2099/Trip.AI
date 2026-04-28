@@ -5,6 +5,7 @@ import {
   DollarSign, CalendarDays, Clock, Navigation, Info,
   AlertTriangle
 } from 'lucide-react';
+import { BookmarkButton } from './BookmarksPage';
 import EventChat from './EventChat';
 
 const dayColors = [
@@ -49,7 +50,7 @@ const checkSimilarActivities = (activity, itinerary) => {
   return similarActivities.length > 0 ? { type: activityType, activities: similarActivities } : null;
 };
 
-function ActivityCard({ activity, dayIndex, onClick }) {
+function ActivityCard({ activity, dayIndex, onClick, destination }) {
   const similarInfo = checkSimilarActivities(activity, activity._itinerary);
   return (
     <div
@@ -57,8 +58,13 @@ function ActivityCard({ activity, dayIndex, onClick }) {
       className="relative pl-6 border-l-2 border-rule cursor-pointer hover:border-terra transition-colors py-2 group"
     >
       <div className="absolute -left-[5px] top-3 w-2 h-2 bg-cream border-2 border-rule group-hover:border-terra transition-colors" />
-      <div className="mb-0.5">
-        <span className="text-xs font-medium text-terra">{activity.time}</span>
+      <div className="flex items-start justify-between">
+        <div className="mb-0.5">
+          <span className="text-xs font-medium text-terra">{activity.time}</span>
+        </div>
+        {destination && (
+          <BookmarkButton item={activity} destination={destination} type="activity" />
+        )}
       </div>
       <h4 className="font-serif text-base text-ink group-hover:text-terra transition-colors">{activity.name}</h4>
       <p className="text-xs text-ink-light mt-0.5 line-clamp-2">{activity.description}</p>
@@ -100,7 +106,7 @@ function ActivityCard({ activity, dayIndex, onClick }) {
   );
 }
 
-function MealCard({ meal, onClick }) {
+function MealCard({ meal, onClick, destination }) {
   return (
     <div
       onClick={onClick}
@@ -111,7 +117,12 @@ function MealCard({ meal, onClick }) {
           <span className="text-[10px] uppercase tracking-[0.14em] text-terra">{meal.type}</span>
           <span className="text-xs text-ink-light">{meal.time}</span>
         </div>
-        <span className="text-xs font-medium text-ink">${meal.cost}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-ink">${meal.cost}</span>
+          {destination && (
+            <BookmarkButton item={meal} destination={destination} type="meal" />
+          )}
+        </div>
       </div>
       <div className="text-sm text-ink mt-0.5">{meal.name}</div>
       <div className="text-xs text-ink-light line-clamp-1">{meal.description}</div>
@@ -119,7 +130,7 @@ function MealCard({ meal, onClick }) {
   );
 }
 
-function AccommodationOptions({ options }) {
+function AccommodationOptions({ options, destination }) {
   if (!options || options.length === 0) return null;
   return (
     <div className="mt-6 pt-6 border-t border-rule">
@@ -133,7 +144,12 @@ function AccommodationOptions({ options }) {
                 <div className="text-xs text-ink-light">{opt.description}</div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-sm text-ink">${opt.cost_per_night}<span className="text-xs text-ink-muted">/nt</span></div>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm text-ink">${opt.cost_per_night}<span className="text-xs text-ink-muted">/nt</span></div>
+                  {destination && (
+                    <BookmarkButton item={opt} destination={destination} type="accommodation" />
+                  )}
+                </div>
                 <div className="text-[10px] uppercase tracking-[0.14em] text-ink-muted">{opt.type}</div>
               </div>
             </div>
@@ -294,7 +310,7 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
                       <h4 className="text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">Meals</h4>
                       <div className="border-t border-rule">
                         {day.meals.map((meal, mIdx) => (
-                          <MealCard key={mIdx} meal={meal} onClick={() => { setSelectedEvent(meal); setIsActivity(false); setIsEventChatOpen(true); }} />
+                          <MealCard key={mIdx} meal={meal} destination={tripData?.destination} onClick={() => { setSelectedEvent(meal); setIsActivity(false); setIsEventChatOpen(true); }} />
                         ))}
                       </div>
                     </div>
@@ -307,6 +323,7 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
                       <ActivityCard
                         key={aIdx}
                         activity={{ ...activity, _itinerary: itinerary }}
+                        destination={tripData?.destination}
                         dayIndex={idx}
                         onClick={() => { setSelectedEvent(activity); setIsActivity(true); setIsEventChatOpen(true); }}
                       />
@@ -314,7 +331,7 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
                   </div>
 
                   {/* Accommodation */}
-                  {day.accommodation_options && <AccommodationOptions options={day.accommodation_options} />}
+                  {day.accommodation_options && <AccommodationOptions options={day.accommodation_options} destination={tripData?.destination} />}
 
                   {/* Daily total */}
                   <div className="flex justify-end pt-4 mt-4 border-t border-rule">

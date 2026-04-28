@@ -7,6 +7,7 @@ import TripForm from './components/TripForm';
 import TripMap from './components/TripMap';
 import ItineraryDisplay from './components/ItineraryDisplay';
 import SavedTrips from './components/SavedTrips';
+import BookmarksPage from './components/BookmarksPage';
 import { generateItinerary } from './utils/llm';
 import { getTheme } from './utils/season';
 import { tripsApi } from './api/client';
@@ -205,9 +206,8 @@ function AppContent() {
 
         {/* Bookmarks view */}
         {view === 'bookmarks' && (
-          <div className="mt-12 max-w-4xl mx-auto">
-            <h2 className="font-serif text-3xl text-ink mb-8 tracking-tight">Saved Places</h2>
-            <p className="text-ink-light text-sm">Coming soon — bookmark activities and meals across all your trips.</p>
+          <div className="mt-12 max-w-6xl mx-auto">
+            <BookmarksPage />
           </div>
         )}
 
