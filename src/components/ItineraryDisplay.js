@@ -166,6 +166,7 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
   const [isEventChatOpen, setIsEventChatOpen] = useState(false);
   const [isActivity, setIsActivity] = useState(true);
   const [expandedDays, setExpandedDays] = useState(new Set([0]));
+  const [showTracker, setShowTracker] = useState(false);
 
   const totalBudget = tripData?.budget || itinerary?.groupTotal || 0;
   const travelers = tripData?.numPeople || 1;
@@ -252,7 +253,14 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
       {/* Header */}
       <div className="px-6 py-6 flex items-center justify-between border-b border-rule">
         <h2 className="font-serif text-2xl text-ink">Your Itinerary</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowTracker(true)}
+            className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] px-3 py-1.5 border border-rule text-ink-light hover:border-terra hover:text-terra transition-colors"
+          >
+            <DollarSign size={11} strokeWidth={1.5} />
+            Track Expenses
+          </button>
           <button onClick={expandAll} className="text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors">Expand All</button>
           <span className="text-ink-muted">/</span>
           <button onClick={collapseAll} className="text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors">Collapse</button>
@@ -376,8 +384,16 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
         </div>
       )}
 
-      {/* Budget Tracker */}
-      <BudgetTracker itinerary={itinerary} tripData={tripData} />
+      {/* Budget Tracker Overlay */}
+      {showTracker && (
+        <div className="fixed inset-0 z-50 bg-cream overflow-y-auto">
+          <BudgetTracker
+            itinerary={itinerary}
+            tripData={tripData}
+            onClose={() => setShowTracker(false)}
+          />
+        </div>
+      )}
 
       {/* Event Chat */}
       {isEventChatOpen && selectedEvent && (
