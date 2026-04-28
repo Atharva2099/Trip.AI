@@ -1,0 +1,11 @@
+name = "tripai-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tripai-database"
+database_id = "e9eea8bf-ec25-4da1-a34f-431285e390ef"
+
+[vars]
+APP_URL = "https://atharva2099.github.io/Trip.AI"
