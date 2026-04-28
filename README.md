@@ -39,15 +39,10 @@ Choose the AI model that best fits your needs:
 
 | Model ID | Provider | Notes |
 |----------|----------|-------|
-| `moonshotai/kimi-k2.6` | Moonshot AI | Great reasoning, default choice |
-| `deepseek/deepseek-v4-pro` | DeepSeek | Excellent reasoning and coding |
-| `deepseek/deepseek-v4-flash` | DeepSeek | Fast, cost-effective |
-| `xiaomi/mimo-v2.5-pro` | Xiaomi | Strong general performance |
-| `mistralai/mistral-large-2512` | Mistral | Strong multilingual performance |
-| `mistralai/mistral-small-2603` | Mistral | Fast, efficient |
-| `anthropic/claude-sonnet-4.6` | Anthropic | Top-tier instruction following |
-| `google/gemma-4-31b-it:free` | Google | Free tier available |
-| `google/gemma-4-26b-a4b-it:free` | Google | Free tier available |
+| `qwen/qwen3.6-max-preview` | Alibaba Cloud | Strong reasoning, default choice |
+| `moonshotai/kimi-k2.6` | Moonshot AI | Excellent long-context and planning |
+| `deepseek/deepseek-v4-pro` | DeepSeek | Top-tier reasoning and coding |
+| `google/gemma-4-31b-it:free` | Google | Free tier, fast and capable |
 
 ## 🛠️ Local Development Setup
 

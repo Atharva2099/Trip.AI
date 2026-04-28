@@ -1,6 +1,6 @@
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 
-const FALLBACK_MODEL = 'moonshotai/kimi-k2.6';
+const FALLBACK_MODEL = 'qwen/qwen3.6-max-preview';
 
 const getOpenRouterErrorMessage = (status, errorData) => {
   switch (status) {

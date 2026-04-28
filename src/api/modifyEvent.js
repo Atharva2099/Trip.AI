@@ -1,6 +1,6 @@
 // src/api/modifyEvent.js
 
-const FALLBACK_MODEL = 'moonshotai/kimi-k2.6';
+const FALLBACK_MODEL = 'qwen/qwen3.6-max-preview';
 
 const getExistingEvents = (event, currentItinerary) => {
   const existingEvents = new Set();

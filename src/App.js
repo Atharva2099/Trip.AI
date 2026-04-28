@@ -10,7 +10,6 @@ import './App.css';
 function App() {
   const [tripData, setTripData] = useState(null);
   const [itinerary, setItinerary] = useState(null);
-  const [mapPoints, setMapPoints] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState(null);
@@ -28,7 +27,6 @@ function App() {
       console.log('Generated itinerary:', result);
 
       setItinerary(result.itinerary);
-      setMapPoints(result.locations);
     } catch (err) {
       console.error('Error in handleTripSubmit:', err);
       setError(err.message || 'Failed to generate itinerary. Please try again.');
@@ -39,21 +37,6 @@ function App() {
 
   const handleItineraryUpdate = (updatedItinerary) => {
     setItinerary(updatedItinerary);
-
-    const newMapPoints = updatedItinerary.days.flatMap(day => [
-      ...day.activities.map(activity => ({
-        name: activity.name,
-        coordinates: activity.coordinates,
-        description: activity.description
-      })),
-      ...day.meals.map(meal => ({
-        name: meal.name,
-        coordinates: meal.coordinates,
-        description: `${meal.type} - ${meal.description}`
-      }))
-    ]);
-
-    setMapPoints(newMapPoints);
   };
 
   return (
@@ -96,7 +79,7 @@ function App() {
           </div>
 
           <div className="h-[600px] bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden sticky top-8">
-            <TripMap points={mapPoints} />
+            <TripMap itinerary={itinerary} />
           </div>
         </div>
       </div>

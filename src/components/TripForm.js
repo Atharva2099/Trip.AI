@@ -39,18 +39,13 @@ const PRESETS = [
 ];
 
 const MODELS = [
-  { value: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6 (Recommended)' },
-  { value: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
-  { value: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
-  { value: 'xiaomi/mimo-v2.5-pro', label: 'MiMo V2.5 Pro' },
-  { value: 'mistralai/mistral-large-2512', label: 'Mistral Large 3 2512' },
-  { value: 'mistralai/mistral-small-2603', label: 'Mistral Small 4' },
-  { value: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
-  { value: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (Free)' },
-  { value: 'google/gemma-4-26b-a4b-it:free', label: 'Gemma 4 26B (Free)' }
+  { value: 'qwen/qwen3.6-max-preview', label: 'Qwen 3.6 Max' },
+  { value: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
+  { value: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4' },
+  { value: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (Free)' }
 ];
 
-const FALLBACK_MODEL = 'moonshotai/kimi-k2.6';
+const FALLBACK_MODEL = 'qwen/qwen3.6-max-preview';
 const LS_KEY = 'tripai_form_v2';
 
 // ─── Icon mapping for dynamic rendering ──────────────────────
