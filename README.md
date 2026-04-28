@@ -1,102 +1,116 @@
-# Trip.AI 
+# Trip.AI
 
-An AI-powered travel itinerary generator that creates personalized trip plans based on your preferences, including interactive maps, detailed daily schedules, and cost estimates.
+An AI-powered travel itinerary generator with an interactive map, real cost estimates, and a Vanta Punk editorial design language. Plan trips by destination, dates, budget, and interests — then refine every detail through conversational AI.
 
-## 🚀 Try It Now!
+Live at [tripai.pages.dev](https://tripai.pages.dev/)
 
-Visit [Trip.AI](https://atharva2099.github.io/Trip.AI/) to plan your next adventure. You'll need an OpenRouter API key to get started - get one for free at [OpenRouter](https://openrouter.ai/keys).
+---
 
-## ✨ Features
+## Features
 
-- Custom itinerary generation based on:
-  - Destination
-  - Date range
-  - Budget
-  - Number of travelers
-  - Interests
-- Interactive map with location markers and routes
-- Detailed daily schedules with activities and meals
-- Cost estimates and breakdowns
-- Real-time navigation links
-- OpenStreetMap integration
-- Interactive customization - chat with the AI to modify any aspect of your itinerary, from restaurants to activity timings, ensuring your plan is perfect for you
-- **Multiple AI models** - choose from Kimi, Mistral, MiniMax, DeepSeek, Claude, and more via OpenRouter
+### Trip Planning
+- **Destination autocomplete** — powered by Nominatim/OpenStreetMap with place type icons
+- **Date picker** — visual range selection with 2-month calendar and quick presets (Weekend, 3 Days, 1 Week, 2 Weeks)
+- **Travelers** — adult and children steppers
+- **Budget slider** — $500–$20,000 with live per-person-per-day calculation
+- **Interest chips** — select up to 5 from 11 categories (Hiking, Food, Museums, Nightlife, Relaxation, Shopping, Adventure, Culture, Beach, Family, Romantic)
+- **Quick Start presets** — Adventure, Foodie, Relaxation, Family, Romantic, Backpacker (auto-selects interests and adjusts budget)
+- **Season detection** — automatically detects the season at your destination based on latitude and travel dates
 
-## 🔑 API Setup
+### AI Itinerary Generation
+- **OpenRouter integration** — bring your own API key, stored locally
+- **Model selection**: DeepSeek V4 Flash / Pro, Qwen 3.6 Max, Kimi K2.6, Gemma 4 31B Free
+- **JSON-native output** — structured itinerary with real place names, coordinates, costs, and routes
+- **Max tokens: 6000** — prevents truncation for longer trips
+- **300-second timeout** — handles OpenRouter queue times (1–3 min typical)
+- **Destination cost classification** — LLM estimates typical daily spend tier (budget/mid-range/luxury/ultra-luxury)
 
-Trip.AI uses the OpenRouter API for generating travel itineraries. To use the application:
+### Interactive Map
+- **Leaflet + CartoDB light tiles** — warm, editorial map aesthetic
+- **Day filter** — view all days or isolate individual days with color-coded markers
+- **Journey stats panel** — total distance, travel time, longest leg, transport breakdown by mode
+- **Per-day routing** — automatic route lines drawn between activities for each day
+- **Rich popups** — place name, description, cost, "Getting Here" / "Next Stop" legs with distance/duration/mode, and direct Google Maps navigation links
 
-1. Visit [OpenRouter](https://openrouter.ai/keys)
-2. Sign up for an account
-3. Generate a new API key
-4. Use the key in the application when creating itineraries
+### Itinerary Display
+- **Collapsible accordion days** — expand/collapse each day individually
+- **Sticky cumulative budget bar** — shows running total vs budget with a progress bar
+- **Cost breakdown grid** — activities, food, transport, per-person total
+- **Activity cards** — time, duration, description, cost, transport details
+- **Meal cards** — restaurant name, cuisine, cost
+- **Accommodation options** — per-night pricing when available
 
-Your API key is stored locally in your browser and is never sent to our servers. This ensures you have full control over your API usage and costs.
+### Conversational Customization
+- **Event-level chat** — click any activity or meal to chat with the AI about changing it
+- **Full itinerary context** — the AI sees the entire itinerary when suggesting alternatives
+- **Real-time updates** — modified events replace the original in the itinerary instantly
 
-### Supported Models
+### Design
+- **Vanta Punk editorial** — warm cream palette (`#F5F0E8`), near-black ink (`#1A1208`), terracotta accent (`#C9593A`)
+- **Square edges everywhere** — zero border-radius, architectural feel
+- **Typography** — Playfair Display serif for headlines, Inter sans-serif for body
+- **Custom scrollbar** — thin, warm-toned
+- **No cards, no shadows** — border-separated grid layouts
 
-Choose the AI model that best fits your needs:
+---
 
-| Model ID | Provider | Notes |
-|----------|----------|-------|
-| `qwen/qwen3.6-max-preview` | Alibaba Cloud | Strong reasoning, default choice |
-| `moonshotai/kimi-k2.6` | Moonshot AI | Excellent long-context and planning |
-| `deepseek/deepseek-v4-pro` | DeepSeek | Top-tier reasoning and coding |
-| `google/gemma-4-31b-it:free` | Google | Free tier, fast and capable |
+## Tech Stack
 
-## 🛠️ Local Development Setup
+- React 18
+- Tailwind CSS
+- Leaflet + leaflet-routing-machine
+- react-day-picker
+- lucide-react icons
+- date-fns
+- OpenRouter API (bring-your-own-key)
+- Nominatim / OpenStreetMap (free geocoding)
 
-1. Clone the repository:
+---
+
+## Local Development
+
 ```bash
 git clone https://github.com/Atharva2099/Trip.AI.git
 cd Trip.AI
-```
-
-2. Install dependencies:
-```bash
 npm install
-```
-
-3. Start the development server:
-```bash
 npm start
 ```
 
-The application will be available at `http://localhost:3000`
+The app runs at `http://localhost:3000`.
 
-4. Create a .env file and add your API key using the env variable (No spaces):
-```Text
-REACT_APP_OPENROUTER_API_KEY=
+To build for production:
+```bash
+npm run build
 ```
 
+---
 
-## 💻 Technologies Used
+## API Setup
 
-- React
-- Tailwind CSS
-- Leaflet Maps
-- OpenRouter API (Kimi, Mistral, MiniMax, DeepSeek, Claude, Gemma)
-- OpenStreetMap
-- date-fns
-- shadcn/ui components
+1. Get a free API key at [openrouter.ai/keys](https://openrouter.ai/keys)
+2. Paste it into the form — it is stored only in your browser's `localStorage`
+3. Choose a model and generate your itinerary
 
-## 📝 Usage Notes
-
-- Each itinerary generation requires one API call to OpenRouter
-- Monitor your API usage and credits in your [OpenRouter dashboard](https://openrouter.ai/settings/credits)
-- Free tier limits apply based on your OpenRouter account and the model chosen
-- Keep your API key secure and never share it
-
-## 📧 Contact
-
-- GitHub: [@FullMLAlchemist](https://github.com/Atharva2099)
-- Twitter: [@Attharave](https://x.com/attharave)
+No backend. No data collection. Your key, your compute.
 
 ---
-<p align="center">
-  Made with ☕️  by FullMLAlchemist
-</p>
 
-<p align="center">
-  <small>Location icons created by Freepik - Flaticon</small>
-</p>)
+## Supported Models
+
+| Model | Provider | Best For |
+|-------|----------|----------|
+| `deepseek/deepseek-v4-flash` | DeepSeek | Speed, default choice |
+| `deepseek/deepseek-v4-pro` | DeepSeek | Best reasoning |
+| `qwen/qwen3.6-max-preview` | Alibaba Cloud | Strong planning |
+| `moonshotai/kimi-k2.6` | Moonshot AI | Long context |
+| `google/gemma-4-31b-it:free` | Google | Free tier |
+
+---
+
+## License
+
+MIT
+
+---
+
+Made by [Atharva2099](https://github.com/Atharva2099)

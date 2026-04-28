@@ -82,17 +82,15 @@ function App() {
           </div>
         )}
 
-        {/* Form area */}
-        {showForm && (
-          <div className={`${hasItinerary ? 'mt-8 max-w-md' : 'mt-16 max-w-lg mx-auto'}`}>
-            {!hasItinerary && (
-              <div className="mb-12 text-center">
-                <h1 className="font-serif text-5xl text-ink mb-4 tracking-tight">Plan your next adventure</h1>
-                <p className="text-ink-light text-sm max-w-md mx-auto leading-relaxed">
-                  Tell us where you want to go, and our AI will craft a detailed itinerary with real places, costs, and routes.
-                </p>
-              </div>
-            )}
+        {/* Form area — centered when no itinerary */}
+        {showForm && !hasItinerary && (
+          <div className="mt-16 max-w-lg mx-auto">
+            <div className="mb-12 text-center">
+              <h1 className="font-serif text-5xl text-ink mb-4 tracking-tight">Plan your next adventure</h1>
+              <p className="text-ink-light text-sm max-w-md mx-auto leading-relaxed">
+                Tell us where you want to go, and our AI will craft a detailed itinerary with real places, costs, and routes.
+              </p>
+            </div>
             <TripForm
               onSubmit={handleTripSubmit}
               disabled={loading}
@@ -114,8 +112,22 @@ function App() {
         {/* Results */}
         {hasItinerary && (
           <div className="mt-12 grid grid-cols-1 xl:grid-cols-12 gap-0">
+            {/* Form — inline when editing */}
+            {showForm && (
+              <div className="xl:col-span-3 xl:border-r border-rule">
+                <div className="p-6">
+                  <TripForm
+                    onSubmit={handleTripSubmit}
+                    disabled={loading}
+                    theme={theme}
+                    onThemeChange={setTheme}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Itinerary */}
-            <div className="xl:col-span-5 xl:border-r border-rule">
+            <div className={showForm ? 'xl:col-span-4 xl:border-r border-rule' : 'xl:col-span-5 xl:border-r border-rule'}>
               <ItineraryDisplay
                 itinerary={itinerary}
                 tripData={tripData}
@@ -126,7 +138,7 @@ function App() {
             </div>
 
             {/* Map */}
-            <div className="xl:col-span-7">
+            <div className={showForm ? 'xl:col-span-5' : 'xl:col-span-7'}>
               <div className="h-[500px] lg:h-[85vh] bg-cream-dark border-b border-rule xl:border-b-0 sticky top-[57px]">
                 <TripMap itinerary={itinerary} />
               </div>

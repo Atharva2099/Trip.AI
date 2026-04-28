@@ -344,7 +344,7 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
               { label: 'Transport', value: itinerary.costBreakdown.transportation },
               { label: 'Per Person', value: itinerary.perPersonTotal }
             ].map((item, i) => (
-              <div key={item.label} className={`py-4 ${i > 0 ? 'border-l border-rule' : ''}`}>
+              <div key={item.label} className={`py-4 px-4 text-center ${i > 0 ? 'border-l border-rule' : ''}`}>
                 <div className="text-[10px] uppercase tracking-[0.14em] text-ink-muted mb-1">{item.label}</div>
                 <div className="font-serif text-xl text-ink">${item.value}</div>
               </div>
