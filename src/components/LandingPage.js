@@ -6,7 +6,9 @@ const UNSPLASH_IMAGES = [
   'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80',
   'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1920&q=80',
   'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=1920&q=80',
-  'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=1920&q=80'
+  'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=1920&q=80',
+  'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=1920&q=80',
+  'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1920&q=80'
 ];
 
 export default function LandingPage() {
