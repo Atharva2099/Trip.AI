@@ -26,7 +26,7 @@ const makeOpenRouterRequest = async (messages, temperature = 0.3, apiKey, model,
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min timeout
 
   try {
     console.log('Making API request with messages:', messages);
@@ -154,9 +154,8 @@ export const generateItinerary = async (tripData) => {
       throw new Error('Budget too low: Minimum $50 per person per day required');
     }
 
-    // Dynamic max_tokens based on trip length to reduce latency
-    const dayCount = formattedDates.length;
-    const maxTokens = dayCount <= 3 ? 1500 : dayCount <= 7 ? 2500 : 3500;
+    // Generous max_tokens — itinerary JSON with coordinates is large
+    const maxTokens = 6000;
 
     const template = {
       days: [{
@@ -177,6 +176,7 @@ export const generateItinerary = async (tripData) => {
       }]
     };
 
+    const dayCount = formattedDates.length;
     const systemPrompt = `Generate a ${dayCount}-day travel itinerary for ${restTripData.destination} in valid JSON matching this structure:
 ${JSON.stringify(template, null, 2)}
 

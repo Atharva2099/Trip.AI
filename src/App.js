@@ -1,6 +1,6 @@
 // src/App.js
 import React, { useState } from 'react';
-import { Plus, Edit3, Compass } from 'lucide-react';
+import { Plus, Edit3, Compass, X } from 'lucide-react';
 import TripForm from './components/TripForm';
 import TripMap from './components/TripMap';
 import ItineraryDisplay from './components/ItineraryDisplay';
@@ -52,12 +52,12 @@ function App() {
 
   return (
     <div className={`min-h-screen transition-colors duration-700 ${currentTheme?.bg || 'bg-gray-50'}`}>
-      <div className="container mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+      {/* Sticky header */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-gray-100">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Compass size={28} className="text-gray-800" />
-            <h1 className="text-2xl font-bold text-gray-800">Trip.AI</h1>
+            <Compass size={24} className="text-gray-800" />
+            <h1 className="text-xl font-bold text-gray-800">Trip.AI</h1>
           </div>
           {hasItinerary && (
             <div className="flex items-center gap-2">
@@ -65,8 +65,8 @@ function App() {
                 onClick={() => setShowForm((s) => !s)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm transition-all"
               >
-                <Edit3 size={14} />
-                {showForm ? 'Hide Form' : 'Edit Search'}
+                {showForm ? <X size={14} /> : <Edit3 size={14} />}
+                {showForm ? 'Close' : 'Edit Search'}
               </button>
               <button
                 onClick={handleNewTrip}
@@ -78,16 +78,18 @@ function App() {
             </div>
           )}
         </div>
+      </header>
 
+      <div className="container mx-auto px-4 py-6">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 text-sm">
             {error}
           </div>
         )}
 
-        {/* Form area — collapses after generation */}
+        {/* Form — centered when no results, sidebar when results exist */}
         {showForm && (
-          <div className="max-w-xl mx-auto mb-8">
+          <div className={`mb-6 ${hasItinerary ? 'lg:float-left lg:w-96 lg:mr-6 lg:mb-0' : 'max-w-xl mx-auto'}`}>
             <TripForm
               onSubmit={handleTripSubmit}
               disabled={loading}
@@ -110,8 +112,9 @@ function App() {
 
         {/* Results: itinerary + map */}
         {hasItinerary && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-6">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+            {/* Itinerary — narrower on desktop so map gets more room */}
+            <div className="xl:col-span-5 space-y-6">
               <ItineraryDisplay
                 itinerary={itinerary}
                 tripData={tripData}
@@ -121,8 +124,11 @@ function App() {
               />
             </div>
 
-            <div className="h-[600px] bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden sticky top-6">
-              <TripMap itinerary={itinerary} />
+            {/* Map — taller and wider on desktop */}
+            <div className="xl:col-span-7">
+              <div className="h-[500px] lg:h-[85vh] bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden sticky top-20">
+                <TripMap itinerary={itinerary} />
+              </div>
             </div>
           </div>
         )}
