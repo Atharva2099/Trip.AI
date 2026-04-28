@@ -6,6 +6,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { BookmarkButton } from './BookmarksPage';
+import BudgetTracker from './BudgetTracker';
 import EventChat from './EventChat';
 
 const dayColors = [
@@ -374,6 +375,9 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
           </div>
         </div>
       )}
+
+      {/* Budget Tracker */}
+      <BudgetTracker itinerary={itinerary} tripData={tripData} />
 
       {/* Event Chat */}
       {isEventChatOpen && selectedEvent && (
