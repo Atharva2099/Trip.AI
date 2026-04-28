@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Calendar, Trash2, Loader2 } from 'lucide-react';
+import { MapPin, Calendar, Trash2, Loader2, Eye } from 'lucide-react';
 import { tripsApi } from '../api/client';
 
 export default function SavedTrips({ onLoadTrip }) {
@@ -7,6 +7,7 @@ export default function SavedTrips({ onLoadTrip }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [loadingTrip, setLoadingTrip] = useState(null);
 
   useEffect(() => {
     loadTrips();
@@ -21,6 +22,18 @@ export default function SavedTrips({ onLoadTrip }) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleViewTrip(trip) {
+    setLoadingTrip(trip.id);
+    try {
+      const fullTrip = await tripsApi.get(trip.id);
+      onLoadTrip(fullTrip);
+    } catch (err) {
+      alert('Failed to load trip: ' + err.message);
+    } finally {
+      setLoadingTrip(null);
     }
   }
 
@@ -106,11 +119,22 @@ export default function SavedTrips({ onLoadTrip }) {
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="font-serif text-xl text-ink">${trip.budget?.toLocaleString()}</span>
+              <div>
+                <span className="font-serif text-xl text-ink">${(trip.proposed_budget || trip.budget)?.toLocaleString()}</span>
+                <span className="text-[10px] uppercase tracking-[0.14em] text-ink-muted ml-2">
+                  {trip.proposed_budget ? 'proposed' : 'budget'}
+                </span>
+              </div>
               <button
-                onClick={() => onLoadTrip(trip)}
-                className="text-[10px] uppercase tracking-[0.14em] px-3 py-1.5 border border-rule text-ink-light hover:border-terra hover:text-terra transition-colors"
+                onClick={() => handleViewTrip(trip)}
+                disabled={loadingTrip === trip.id}
+                className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] px-3 py-1.5 border border-rule text-ink-light hover:border-terra hover:text-terra transition-colors"
               >
+                {loadingTrip === trip.id ? (
+                  <Loader2 size={11} className="animate-spin" strokeWidth={1.5} />
+                ) : (
+                  <Eye size={11} strokeWidth={1.5} />
+                )}
                 View Trip
               </button>
             </div>

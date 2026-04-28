@@ -77,6 +77,7 @@ function AppContent() {
             start_date: formData.dates?.start,
             end_date: formData.dates?.end,
             budget: formData.budget,
+            proposed_budget: result.itinerary?.groupTotal || formData.budget,
             travelers: formData._travelers || { adults: 2, children: 0 },
             interests: formData.interests?.split(',').map(s => s.trim()).filter(Boolean) || [],
             itinerary_data: result.itinerary

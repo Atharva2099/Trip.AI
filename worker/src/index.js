@@ -242,7 +242,7 @@ app.post('/auth/logout', authMiddleware, async (c) => {
 app.get('/api/trips', authMiddleware, async (c) => {
   const user = c.get('user');
   const { results } = await c.env.DB.prepare(
-    `SELECT id, title, destination, start_date, end_date, budget, created_at
+    `SELECT id, title, destination, start_date, end_date, budget, proposed_budget, created_at
      FROM itineraries WHERE user_id = ? ORDER BY created_at DESC`
   ).bind(user.sub).all();
   return c.json({ trips: results });
@@ -268,8 +268,8 @@ app.post('/api/trips', authMiddleware, async (c) => {
   const body = await c.req.json();
   const id = generateId();
   await c.env.DB.prepare(
-    `INSERT INTO itineraries (id, user_id, title, destination, start_date, end_date, budget, travelers, interests, itinerary_data)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO itineraries (id, user_id, title, destination, start_date, end_date, budget, proposed_budget, travelers, interests, itinerary_data)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     user.sub,
@@ -278,6 +278,7 @@ app.post('/api/trips', authMiddleware, async (c) => {
     body.start_date,
     body.end_date,
     body.budget,
+    body.proposed_budget || body.budget,
     JSON.stringify(body.travelers || {}),
     JSON.stringify(body.interests || []),
     JSON.stringify(body.itinerary_data)
