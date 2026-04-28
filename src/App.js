@@ -228,12 +228,12 @@ function AppContent() {
         {/* Home view */}
         {view === 'home' && (
           <>
-            {/* Form area — centered when no itinerary */}
+            {/* Form area — full width on desktop */}
             {showForm && !hasItinerary && (
-              <div className="mt-16 max-w-lg md:max-w-2xl lg:max-w-3xl mx-auto">
-                <div className="mb-12 text-center">
-                  <h1 className="font-serif text-5xl text-ink mb-4 tracking-tight">Plan your next adventure</h1>
-                  <p className="text-ink-light text-sm max-w-md mx-auto leading-relaxed">
+              <div className="mt-16 px-4 md:px-8 lg:px-12">
+                <div className="mb-12">
+                  <h1 className="font-serif text-5xl md:text-6xl text-ink mb-4 tracking-tight">Plan your next adventure</h1>
+                  <p className="text-ink-light text-sm md:text-base max-w-xl leading-relaxed">
                     Tell us where you want to go, and our AI will craft a detailed itinerary with real places, costs, and routes.
                   </p>
                 </div>

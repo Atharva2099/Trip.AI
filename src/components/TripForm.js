@@ -320,248 +320,250 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
   const currentTheme = theme ? getTheme(theme) : null;
 
   return (
-    <div className="bg-cream-dark border border-rule p-8">
-      <form onSubmit={handleSubmit} className="space-y-8">
+    <div className="bg-cream-dark border border-rule p-6 md:p-8">
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
 
-        {/* Destination */}
-        <div className="relative" ref={suggestionsRef}>
-          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
-            Destination
-          </label>
-          <div className="relative">
-            <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" strokeWidth={1.5} />
-            <input
-              type="text"
-              value={form.destinationText}
-              onChange={(e) => handleDestinationInput(e.target.value)}
-              onFocus={() => form.destinationText.length >= 2 && setShowSuggestions(true)}
-              placeholder="Search for a city or place..."
-              className="w-full pl-9 pr-3 py-3 border border-rule bg-cream text-ink placeholder-ink-muted focus:outline-none focus:border-terra transition-colors text-sm"
-              required
-            />
-            {loadingSuggestions && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <div className="w-3 h-3 border border-rule border-t-terra rounded-full animate-spin" />
+          {/* Destination — full width */}
+          <div className="md:col-span-2 relative" ref={suggestionsRef}>
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
+              Destination
+            </label>
+            <div className="relative">
+              <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" strokeWidth={1.5} />
+              <input
+                type="text"
+                value={form.destinationText}
+                onChange={(e) => handleDestinationInput(e.target.value)}
+                onFocus={() => form.destinationText.length >= 2 && setShowSuggestions(true)}
+                placeholder="Search for a city or place..."
+                className="w-full pl-9 pr-3 py-3 border border-rule bg-cream text-ink placeholder-ink-muted focus:outline-none focus:border-terra transition-colors text-sm"
+                required
+              />
+              {loadingSuggestions && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="w-3 h-3 border border-rule border-t-terra rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+            {formErrors.destination && (
+              <p className="mt-2 text-xs text-terra">{formErrors.destination}</p>
+            )}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-20 w-full mt-1 bg-cream border border-rule shadow-lg">
+                {suggestions.map((place) => {
+                  const iconName = getPlaceIcon(place.type, place.class);
+                  const Icon = IconMap[iconName] || MapPin;
+                  return (
+                    <button
+                      key={place.id}
+                      type="button"
+                      onClick={() => selectDestination(place)}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-cream-dark text-left transition-colors border-b border-rule last:border-b-0"
+                    >
+                      <Icon size={14} className="text-ink-muted shrink-0" strokeWidth={1.5} />
+                      <div className="min-w-0">
+                        <div className="text-sm text-ink truncate">{place.name}</div>
+                        <div className="text-xs text-ink-muted truncate">{place.fullName}</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
-          {formErrors.destination && (
-            <p className="mt-2 text-xs text-terra">{formErrors.destination}</p>
-          )}
-          {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-cream border border-rule shadow-lg">
-              {suggestions.map((place) => {
-                const iconName = getPlaceIcon(place.type, place.class);
-                const Icon = IconMap[iconName] || MapPin;
+
+          {/* Dates — full width */}
+          <div className="md:col-span-2 relative" ref={calendarRef}>
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
+              Dates
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowCalendar((s) => !s)}
+              className="w-full flex items-center justify-between px-3 py-3 border border-rule bg-cream text-left focus:outline-none focus:border-terra transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <CalendarDays size={14} className="text-ink-muted" strokeWidth={1.5} />
+                {form.dateRange.from && form.dateRange.to ? (
+                  <span className="text-sm text-ink">
+                    {format(new Date(form.dateRange.from), 'MMM d')} — {format(new Date(form.dateRange.to), 'MMM d, yyyy')}
+                    <span className="text-ink-muted ml-2">({durationDays} day{durationDays !== 1 ? 's' : ''})</span>
+                  </span>
+                ) : form.dateRange.from ? (
+                  <span className="text-sm text-ink">{format(new Date(form.dateRange.from), 'MMM d')} — Select end</span>
+                ) : (
+                  <span className="text-sm text-ink-muted">Pick a date range</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {currentTheme && (
+                  <span className="flex items-center gap-1 text-xs text-ink-light">
+                    <SeasonIcon season={theme} />
+                    {currentTheme.name}
+                  </span>
+                )}
+                <ChevronDown size={12} className="text-ink-muted" />
+              </div>
+            </button>
+            {formErrors.dates && (
+              <p className="mt-2 text-xs text-terra">{formErrors.dates}</p>
+            )}
+            <div className="flex gap-2 mt-2">
+              {[
+                { label: 'Weekend', days: 2 },
+                { label: '3 Days', days: 3 },
+                { label: '1 Week', days: 7 },
+                { label: '2 Weeks', days: 14 }
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => quickDatePreset(p.days)}
+                  className="text-[10px] uppercase tracking-[0.14em] px-2 py-1 border border-rule text-ink-light hover:border-terra hover:text-terra transition-colors"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {showCalendar && (
+              <div className="absolute z-20 mt-2 bg-cream border border-rule shadow-lg p-3">
+                <DayPicker
+                  mode="range"
+                  numberOfMonths={2}
+                  month={calendarMonth}
+                  onMonthChange={setCalendarMonth}
+                  selected={{
+                    from: form.dateRange.from ? new Date(form.dateRange.from) : undefined,
+                    to: form.dateRange.to ? new Date(form.dateRange.to) : undefined
+                  }}
+                  onSelect={handleDateSelect}
+                  disabled={[{ before: startOfToday() }]}
+                  modifiersClassNames={{
+                    today: 'font-bold',
+                    selected: 'bg-terra text-cream',
+                    range_start: 'bg-terra text-cream',
+                    range_end: 'bg-terra text-cream',
+                    range_middle: 'bg-terra/20 text-terra'
+                  }}
+                />
+                <div className="text-[10px] uppercase tracking-[0.14em] text-ink-muted mt-2 text-center">
+                  Maximum: 14 days
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Travelers */}
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-3">
+              Travelers
+            </label>
+            <div className="space-y-2">
+              <Stepper label="Adults" value={form.travelers.adults} onChange={(v) => setForm((f) => ({ ...f, travelers: { ...f.travelers, adults: v } }))} min={1} max={20} />
+              <Stepper label="Children" value={form.travelers.children} onChange={(v) => setForm((f) => ({ ...f, travelers: { ...f.travelers, children: v } }))} min={0} max={10} />
+            </div>
+          </div>
+
+          {/* Budget */}
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-3">
+              Budget
+            </label>
+            <div className="flex items-baseline gap-3 mb-2">
+              <span className="font-serif text-2xl text-ink">${form.budget.toLocaleString()}</span>
+              {durationDays > 0 && totalTravelers > 0 && (
+                <span className="text-xs text-ink-light">${perPersonPerDay}/person/day</span>
+              )}
+            </div>
+            <input
+              type="range"
+              min={500}
+              max={20000}
+              step={100}
+              value={form.budget}
+              onChange={(e) => setForm((f) => ({ ...f, budget: parseInt(e.target.value) }))}
+              className="w-full h-[2px] bg-rule appearance-none cursor-pointer accent-terra"
+            />
+            <div className="flex justify-between text-[10px] uppercase tracking-[0.14em] text-ink-muted mt-2">
+              <span>$500</span>
+              <span>$20,000</span>
+            </div>
+            {costData && (
+              <div className="mt-3 text-xs text-ink-light border-l-2 border-terra pl-3">
+                <span className="font-medium text-ink">{costData.description || costData.tier}</span>
+                {costData.minDaily && costData.maxDaily && (
+                  <span> — typical ${costData.minDaily}-${costData.maxDaily}/person/day</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Interests — full width */}
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-[10px] uppercase tracking-[0.14em] text-ink-light">
+                Interests
+              </label>
+              {form.interests.length >= 5 && (
+                <span className="text-[10px] text-terra">Max 5</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {INTERESTS.map((interest) => (
+                <InterestChip
+                  key={interest.key}
+                  interest={interest}
+                  active={form.interests.includes(interest.key)}
+                  onClick={() => toggleInterest(interest.key)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Presets — full width */}
+          <div className="md:col-span-2">
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-3">
+              Quick Start
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {PRESETS.map((preset) => {
+                const Icon = preset.icon;
+                const active = form.preset === preset.key;
                 return (
                   <button
-                    key={place.id}
+                    key={preset.key}
                     type="button"
-                    onClick={() => selectDestination(place)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-cream-dark text-left transition-colors border-b border-rule last:border-b-0"
+                    onClick={() => applyPreset(preset)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-all ${
+                      active
+                        ? 'bg-terra text-cream border-terra'
+                        : 'bg-transparent text-ink-light border-rule hover:border-terra hover:text-terra'
+                    }`}
                   >
-                    <Icon size={14} className="text-ink-muted shrink-0" strokeWidth={1.5} />
-                    <div className="min-w-0">
-                      <div className="text-sm text-ink truncate">{place.name}</div>
-                      <div className="text-xs text-ink-muted truncate">{place.fullName}</div>
-                    </div>
+                    <Icon size={13} strokeWidth={1.5} />
+                    {preset.label}
                   </button>
                 );
               })}
             </div>
-          )}
-        </div>
-
-        {/* Dates */}
-        <div className="relative" ref={calendarRef}>
-          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
-            Dates
-          </label>
-          <button
-            type="button"
-            onClick={() => setShowCalendar((s) => !s)}
-            className="w-full flex items-center justify-between px-3 py-3 border border-rule bg-cream text-left focus:outline-none focus:border-terra transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <CalendarDays size={14} className="text-ink-muted" strokeWidth={1.5} />
-              {form.dateRange.from && form.dateRange.to ? (
-                <span className="text-sm text-ink">
-                  {format(new Date(form.dateRange.from), 'MMM d')} — {format(new Date(form.dateRange.to), 'MMM d, yyyy')}
-                  <span className="text-ink-muted ml-2">({durationDays} day{durationDays !== 1 ? 's' : ''})</span>
-                </span>
-              ) : form.dateRange.from ? (
-                <span className="text-sm text-ink">{format(new Date(form.dateRange.from), 'MMM d')} — Select end</span>
-              ) : (
-                <span className="text-sm text-ink-muted">Pick a date range</span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {currentTheme && (
-                <span className="flex items-center gap-1 text-xs text-ink-light">
-                  <SeasonIcon season={theme} />
-                  {currentTheme.name}
-                </span>
-              )}
-              <ChevronDown size={12} className="text-ink-muted" />
-            </div>
-          </button>
-          {formErrors.dates && (
-            <p className="mt-2 text-xs text-terra">{formErrors.dates}</p>
-          )}
-          <div className="flex gap-2 mt-2">
-            {[
-              { label: 'Weekend', days: 2 },
-              { label: '3 Days', days: 3 },
-              { label: '1 Week', days: 7 },
-              { label: '2 Weeks', days: 14 }
-            ].map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => quickDatePreset(p.days)}
-                className="text-[10px] uppercase tracking-[0.14em] px-2 py-1 border border-rule text-ink-light hover:border-terra hover:text-terra transition-colors"
-              >
-                {p.label}
-              </button>
-            ))}
           </div>
-          {showCalendar && (
-            <div className="absolute z-20 mt-2 bg-cream border border-rule shadow-lg p-3">
-              <DayPicker
-                mode="range"
-                numberOfMonths={2}
-                month={calendarMonth}
-                onMonthChange={setCalendarMonth}
-                selected={{
-                  from: form.dateRange.from ? new Date(form.dateRange.from) : undefined,
-                  to: form.dateRange.to ? new Date(form.dateRange.to) : undefined
-                }}
-                onSelect={handleDateSelect}
-                disabled={[{ before: startOfToday() }]}
-                modifiersClassNames={{
-                  today: 'font-bold',
-                  selected: 'bg-terra text-cream',
-                  range_start: 'bg-terra text-cream',
-                  range_end: 'bg-terra text-cream',
-                  range_middle: 'bg-terra/20 text-terra'
-                }}
-              />
-              <div className="text-[10px] uppercase tracking-[0.14em] text-ink-muted mt-2 text-center">
-                Maximum: 14 days
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* Travelers */}
-        <div>
-          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-3">
-            Travelers
-          </label>
-          <div className="space-y-2">
-            <Stepper label="Adults" value={form.travelers.adults} onChange={(v) => setForm((f) => ({ ...f, travelers: { ...f.travelers, adults: v } }))} min={1} max={20} />
-            <Stepper label="Children" value={form.travelers.children} onChange={(v) => setForm((f) => ({ ...f, travelers: { ...f.travelers, children: v } }))} min={0} max={10} />
+          {/* Submit — full width */}
+          <div className="md:col-span-2">
+            <button
+              type="submit"
+              disabled={disabled}
+              className={`w-full py-4 text-xs font-medium uppercase tracking-[0.14em] transition-colors ${
+                disabled
+                  ? 'bg-cream-dark text-ink-muted border border-rule cursor-not-allowed'
+                  : 'bg-terra text-cream hover:bg-terra-dark'
+              }`}
+            >
+              {disabled ? 'Generating...' : 'Generate Itinerary'}
+            </button>
           </div>
         </div>
-
-        {/* Budget */}
-        <div>
-          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-3">
-            Budget
-          </label>
-          <div className="flex items-baseline gap-3 mb-2">
-            <span className="font-serif text-2xl text-ink">${form.budget.toLocaleString()}</span>
-            {durationDays > 0 && totalTravelers > 0 && (
-              <span className="text-xs text-ink-light">${perPersonPerDay}/person/day</span>
-            )}
-          </div>
-          <input
-            type="range"
-            min={500}
-            max={20000}
-            step={100}
-            value={form.budget}
-            onChange={(e) => setForm((f) => ({ ...f, budget: parseInt(e.target.value) }))}
-            className="w-full h-[2px] bg-rule appearance-none cursor-pointer accent-terra"
-          />
-          <div className="flex justify-between text-[10px] uppercase tracking-[0.14em] text-ink-muted mt-2">
-            <span>$500</span>
-            <span>$20,000</span>
-          </div>
-          {costData && (
-            <div className="mt-3 text-xs text-ink-light border-l-2 border-terra pl-3">
-              <span className="font-medium text-ink">{costData.description || costData.tier}</span>
-              {costData.minDaily && costData.maxDaily && (
-                <span> — typical ${costData.minDaily}-${costData.maxDaily}/person/day</span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Interests */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <label className="text-[10px] uppercase tracking-[0.14em] text-ink-light">
-              Interests
-            </label>
-            {form.interests.length >= 5 && (
-              <span className="text-[10px] text-terra">Max 5</span>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {INTERESTS.map((interest) => (
-              <InterestChip
-                key={interest.key}
-                interest={interest}
-                active={form.interests.includes(interest.key)}
-                onClick={() => toggleInterest(interest.key)}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Presets */}
-        <div>
-          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-3">
-            Quick Start
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {PRESETS.map((preset) => {
-              const Icon = preset.icon;
-              const active = form.preset === preset.key;
-              return (
-                <button
-                  key={preset.key}
-                  type="button"
-                  onClick={() => applyPreset(preset)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-all ${
-                    active
-                      ? 'bg-terra text-cream border-terra'
-                      : 'bg-transparent text-ink-light border-rule hover:border-terra hover:text-terra'
-                  }`}
-                >
-                  <Icon size={13} strokeWidth={1.5} />
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-
-
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={disabled}
-          className={`w-full py-4 text-xs font-medium uppercase tracking-[0.14em] transition-colors ${
-            disabled
-              ? 'bg-cream-dark text-ink-muted border border-rule cursor-not-allowed'
-              : 'bg-terra text-cream hover:bg-terra-dark'
-          }`}
-        >
-          {disabled ? 'Generating...' : 'Generate Itinerary'}
-        </button>
       </form>
     </div>
   );

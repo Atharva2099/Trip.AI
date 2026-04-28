@@ -4,14 +4,18 @@ import { cors } from 'hono/cors';
 const app = new Hono();
 
 // ─── CORS ────────────────────────────────────────────────────
+const ALLOWED_ORIGINS = [
+  'https://atharva2099.github.io',
+  'https://atharva2099.github.io/Trip.AI',
+  'http://localhost:3000',
+  'http://localhost:8787'
+];
+
 app.use('*', cors({
-  origin: (c) => {
-    const envOrigin = c.env.APP_URL;
-    if (envOrigin) return envOrigin;
-    // Fallbacks for local dev
-    const reqOrigin = c.req.header('origin');
-    if (reqOrigin?.includes('localhost')) return reqOrigin;
-    return 'https://atharva2099.github.io';
+  origin: (origin) => {
+    if (!origin) return ALLOWED_ORIGINS[0];
+    if (ALLOWED_ORIGINS.some(o => origin.startsWith(o))) return origin;
+    return ALLOWED_ORIGINS[0];
   },
   credentials: true,
   allowHeaders: ['Content-Type', 'Authorization'],
@@ -72,13 +76,19 @@ async function authMiddleware(c, next) {
 // ─── GitHub OAuth ────────────────────────────────────────────
 
 app.get('/auth/github', async (c) => {
-  const state = generateId();
-  const clientId = c.env.GITHUB_CLIENT_ID;
-  const redirectUri = `${new URL(c.req.url).origin}/auth/github/callback`;
-  const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email&state=${state}`;
-  // Store state in cookie for validation
-  c.header('Set-Cookie', `oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`);
-  return c.redirect(url);
+  try {
+    const state = generateId();
+    const clientId = c.env.GITHUB_CLIENT_ID;
+    if (!clientId) {
+      return c.json({ error: 'GITHUB_CLIENT_ID not configured' }, 500);
+    }
+    const redirectUri = `${new URL(c.req.url).origin}/auth/github/callback`;
+    const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email&state=${state}`;
+    c.header('Set-Cookie', `oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`);
+    return c.redirect(url);
+  } catch (err) {
+    return c.json({ error: err.message, stack: err.stack }, 500);
+  }
 });
 
 app.get('/auth/github/callback', async (c) => {
@@ -143,12 +153,19 @@ app.get('/auth/github/callback', async (c) => {
 // ─── Google OAuth ────────────────────────────────────────────
 
 app.get('/auth/google', async (c) => {
-  const state = generateId();
-  const clientId = c.env.GOOGLE_CLIENT_ID;
-  const redirectUri = `${new URL(c.req.url).origin}/auth/google/callback`;
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20email%20profile&state=${state}&access_type=offline`;
-  c.header('Set-Cookie', `oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`);
-  return c.redirect(url);
+  try {
+    const state = generateId();
+    const clientId = c.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      return c.json({ error: 'GOOGLE_CLIENT_ID not configured' }, 500);
+    }
+    const redirectUri = `${new URL(c.req.url).origin}/auth/google/callback`;
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20email%20profile&state=${state}&access_type=offline`;
+    c.header('Set-Cookie', `oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`);
+    return c.redirect(url);
+  } catch (err) {
+    return c.json({ error: err.message, stack: err.stack }, 500);
+  }
 });
 
 app.get('/auth/google/callback', async (c) => {
@@ -391,6 +408,7 @@ app.post('/api/generate', async (c) => {
     return c.json({ error: 'Server configuration error: no API key configured' }, 500);
   }
 
+  const model = 'deepseek/deepseek-v4-flash';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000);
 
@@ -433,6 +451,20 @@ app.post('/api/generate', async (c) => {
     }
     return c.json({ error: error.message }, 500);
   }
+});
+
+// ─── Debug ───────────────────────────────────────────────────
+
+app.get('/debug/env', (c) => {
+  return c.json({
+    app_url: c.env.APP_URL,
+    github_id_set: !!c.env.GITHUB_CLIENT_ID,
+    github_secret_set: !!c.env.GITHUB_CLIENT_SECRET,
+    google_id_set: !!c.env.GOOGLE_CLIENT_ID,
+    google_secret_set: !!c.env.GOOGLE_CLIENT_SECRET,
+    jwt_set: !!c.env.JWT_SECRET,
+    openrouter_set: !!c.env.OPENROUTER_API_KEY
+  });
 });
 
 // ─── Health ──────────────────────────────────────────────────
