@@ -368,8 +368,16 @@ const TripMap = ({ itinerary }) => {
 
   return (
     <div className="relative h-full w-full">
+      {/* Stats toggle */}
+      <button
+        onClick={() => setShowStats(s => !s)}
+        className="absolute top-3 right-3 z-[400] w-8 h-8 flex items-center justify-center bg-cream border border-rule text-ink-muted hover:text-terra hover:border-terra transition-colors"
+      >
+        <BarChart3 size={14} strokeWidth={1.5} />
+      </button>
+
       {/* Day filter */}
-      <div className="absolute top-3 left-3 right-16 z-[400] flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="absolute top-3 left-14 right-14 z-[400] flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
         <button
           onClick={() => setActiveDay(null)}
           className={`shrink-0 px-3 py-1.5 text-xs font-medium border transition-colors ${

@@ -96,6 +96,16 @@
 .leaflet-control-attribution a {
   color: #6B5C4A !important;
 }
+/* Hide leaflet logo/image attribution */
+.leaflet-control-attribution img,
+.leaflet-control img {
+  display: none !important;
+}
+/* Generic control styling */
+.leaflet-control {
+  border: none !important;
+  box-shadow: 0 1px 4px rgba(26, 18, 8, 0.12) !important;
+}
 .leaflet-popup-content-wrapper {
   background: #F5F0E8 !important;
   border-radius: 0 !important;
@@ -112,4 +122,10 @@
 }
 .leaflet-container a.leaflet-popup-close-button:hover {
   color: #C9593A !important;
+}
+/* Scale control */
+.leaflet-control-scale-line {
+  background: rgba(245, 240, 232, 0.9) !important;
+  border-color: #D8D0C4 !important;
+  color: #6B5C4A !important;
 }
