@@ -103,7 +103,7 @@ function App() {
             <div className="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-gray-100 p-8 text-center">
               <div className={`animate-spin rounded-full h-10 w-10 border-b-2 mx-auto ${currentTheme?.accent?.replace('text-', 'border-') || 'border-emerald-600'}`}></div>
               <p className="mt-4 text-gray-600 font-medium">Building your trip...</p>
-              <p className="mt-1 text-sm text-gray-400">This usually takes 3-10 seconds</p>
+              <p className="mt-1 text-sm text-gray-400">This usually takes 1-3 minutes</p>
             </div>
           </div>
         )}
