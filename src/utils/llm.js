@@ -1,8 +1,8 @@
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 
-const FALLBACK_MODEL = 'deepseek/deepseek-v4-flash';
+const API_BASE = 'https://tripai-api.athuspydy.workers.dev';
 
-const getOpenRouterErrorMessage = (status, errorData) => {
+const getErrorMessage = (status, errorData) => {
   switch (status) {
     case 401:
       return 'Invalid API key. Please check your OpenRouter API key and try again.';
@@ -12,70 +12,40 @@ const getOpenRouterErrorMessage = (status, errorData) => {
       return 'Your OpenRouter account is out of credits. Please top up at openrouter.ai.';
     case 408:
     case 504:
-      return 'The model is taking too long. Try DeepSeek V4 Flash for faster results.';
+      return 'The model is taking too long. Please try again.';
     case 404:
       return `Model temporarily unavailable.`;
     default:
-      return errorData.error?.message || `Failed to get response from API (HTTP ${status})`;
+      return errorData?.error || `Failed to get response from API (HTTP ${status})`;
   }
 };
 
-const makeOpenRouterRequest = async (messages, temperature = 0.3, apiKey, model, useFallback = true, maxTokens = 3500) => {
-  if (!apiKey) {
-    throw new Error('Please provide a valid OpenRouter API key');
-  }
-
+const makeLLMRequest = async (messages, temperature = 0.3, maxTokens = 6000) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min timeout
+  const timeoutId = setTimeout(() => controller.abort(), 300000);
 
   try {
-    console.log('Making API request with messages:', messages);
-
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch(`${API_BASE}/api/generate`, {
       method: 'POST',
       signal: controller.signal,
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'Trip.AI'
-      },
-      body: JSON.stringify({
-        model: model || FALLBACK_MODEL,
-        messages: messages,
-        temperature: temperature,
-        max_tokens: maxTokens,
-        top_p: 1,
-        include_reasoning: false,
-        response_format: { type: "json_object" }
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages, temperature, maxTokens })
     });
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error('API Error:', errorData);
-      const message = getOpenRouterErrorMessage(response.status, errorData);
-
-      // Auto-fallback to default model if selected model is unavailable
-      if (response.status === 404 && useFallback && model && model !== FALLBACK_MODEL) {
-        console.warn(`Model ${model} unavailable. Falling back to ${FALLBACK_MODEL}`);
-        return makeOpenRouterRequest(messages, temperature, apiKey, FALLBACK_MODEL, false);
-      }
-
-      throw new Error(message);
+      throw new Error(getErrorMessage(response.status, errorData));
     }
 
     const data = await response.json();
-    console.log('API Response:', data);
-    return data.choices[0].message.content;
+    return data.content;
   } catch (error) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
-      throw new Error('Request timed out after 30 seconds. The model may be overloaded. Please try again or switch to a faster model.');
+      throw new Error('Request timed out after 5 minutes. The model may be overloaded. Please try again.');
     }
-    console.error('API Request Error:', error);
     throw error;
   }
 };
@@ -115,29 +85,19 @@ const validateAndAdjustCosts = (itinerary, numPeople) => {
 };
 
 export const generateItinerary = async (tripData) => {
-  // Extract API key and model from tripData
-  const { apiKey, model, ...restTripData } = tripData;
-
   try {
-    console.log('Generating itinerary with trip data:', tripData);
-
-    // Validate required fields
     if (!tripData.destination || !tripData.dates?.start || !tripData.dates?.end || !tripData.budget) {
       throw new Error('Missing required trip data: Please fill in destination, dates, and budget');
     }
 
-    // Validate dates
-    const startDate = parseISO(restTripData.dates.start);
-    const endDate = parseISO(restTripData.dates.end);
+    const startDate = parseISO(tripData.dates.start);
+    const endDate = parseISO(tripData.dates.end);
 
     if (startDate > endDate) {
       throw new Error('Invalid date range: End date must be on or after the start date');
     }
 
-    const dateRange = eachDayOfInterval({
-      start: startDate,
-      end: endDate
-    });
+    const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
 
     if (!dateRange || dateRange.length === 0) {
       throw new Error('Invalid date range: Please select valid travel dates');
@@ -148,14 +108,11 @@ export const generateItinerary = async (tripData) => {
     }
 
     const formattedDates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
-    const budgetPerPerson = Math.floor(parseInt(restTripData.budget) / parseInt(restTripData.numPeople || 1));
+    const budgetPerPerson = Math.floor(parseInt(tripData.budget) / parseInt(tripData.numPeople || 1));
 
     if (budgetPerPerson < 50) {
       throw new Error('Budget too low: Minimum $50 per person per day required');
     }
-
-    // Generous max_tokens — itinerary JSON with coordinates is large
-    const maxTokens = 6000;
 
     const template = {
       days: [{
@@ -177,79 +134,58 @@ export const generateItinerary = async (tripData) => {
     };
 
     const dayCount = formattedDates.length;
-    const systemPrompt = `Generate a ${dayCount}-day travel itinerary for ${restTripData.destination} in valid JSON matching this structure:
+    const systemPrompt = `Generate a ${dayCount}-day travel itinerary for ${tripData.destination} in valid JSON matching this structure:
 ${JSON.stringify(template, null, 2)}
 
 Rules:
 - 2-3 activities + 3 meals per day
 - Same-day activities must be in the same neighborhood (walking/short drive)
-- Different days explore different areas of ${restTripData.destination}
+- Different days explore different areas of ${tripData.destination}
 - Transport between activities: walk/taxi/local transit under 15 min
 - All locations real with exact coordinates
-- Realistic costs for ${restTripData.destination}
+- Realistic costs for ${tripData.destination}
 - Activities between 8:00-22:00
 - No duplicate places anywhere in the trip`;
 
-    const userPrompt = `Budget: $${budgetPerPerson}/person/day for ${restTripData.numPeople} people
+    const userPrompt = `Budget: $${budgetPerPerson}/person/day for ${tripData.numPeople} people
 Dates: ${formattedDates.join(', ')}
-Interests: ${restTripData.interests || 'general sightseeing'}
+Interests: ${tripData.interests || 'general sightseeing'}
 
 Generate the itinerary JSON now.`;
 
-    console.log('Sending prompts to API');
-    const content = await makeOpenRouterRequest([
+    const content = await makeLLMRequest([
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt }
-    ], 0.4, apiKey, model, true, maxTokens);
+    ], 0.4, 6000);
 
-    console.log('Received content from API:', content);
+    const cleanContent = content
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
 
-    try {
-      // Clean up the content
-      const cleanContent = content
-        .replace(/```json\n?/g, '')
-        .replace(/```\n?/g, '')
-        .trim();
-
-      console.log('Cleaned content:', cleanContent);
-
-      // Extract JSON
-      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error('No JSON object found in content:', content);
-        throw new Error('Invalid response format: No JSON object found');
-      }
-
-      const parsedContent = JSON.parse(jsonMatch[0]);
-      const validatedItinerary = validateAndAdjustCosts(parsedContent, restTripData.numPeople);
-
-      // Extract locations for map
-      const locations = validatedItinerary.days.flatMap(day => 
-        day.activities.map(activity => ({
-          name: activity.name,
-          coordinates: activity.coordinates,
-          description: activity.description
-        }))
-      );
-
-      console.log('Successfully generated itinerary');
-      return {
-        itinerary: validatedItinerary,
-        locations
-      };
-
-    } catch (parseError) {
-      console.error('Parsing Error:', parseError);
-      console.error('Raw Content:', content);
-      throw new Error(`Failed to parse itinerary: ${parseError.message}`);
+    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('Invalid response format: No JSON object found');
     }
+
+    const parsedContent = JSON.parse(jsonMatch[0]);
+    const validatedItinerary = validateAndAdjustCosts(parsedContent, tripData.numPeople);
+
+    const locations = validatedItinerary.days.flatMap(day => 
+      day.activities.map(activity => ({
+        name: activity.name,
+        coordinates: activity.coordinates,
+        description: activity.description
+      }))
+    );
+
+    return {
+      itinerary: validatedItinerary,
+      locations
+    };
+
   } catch (error) {
-    if (error.message.includes('API key')) {
-      throw new Error('API Key Error: ' + error.message);
-    }
     console.error('Generation Error:', error);
     throw new Error(`Failed to generate valid itinerary: ${error.message}`);
   }
 };
-
-export { makeOpenRouterRequest, validateAndAdjustCosts };

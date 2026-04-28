@@ -46,7 +46,6 @@ const MODELS = [
 
 const FALLBACK_MODEL = 'deepseek/deepseek-v4-flash';
 const LS_KEY = 'tripai_form_v2';
-const DEFAULT_API_KEY = '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';
 
 const IconMap = {
   MapPin, Building2, Globe, Camera, Trees, Waves, MountainSnow,
@@ -168,8 +167,7 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
       budget: 3000,
       interests: [],
       preset: null,
-      apiKey: '',
-      model: localStorage.getItem('openrouter_model') || FALLBACK_MODEL
+      model: FALLBACK_MODEL
     };
   };
 
@@ -181,7 +179,6 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
   const [costData, setCostData] = useState(null);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [formErrors, setFormErrors] = useState({});
-  const [showSettings, setShowSettings] = useState(false);
 
   const searchTimeout = useRef(null);
   const calendarRef = useRef(null);
@@ -240,9 +237,8 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
       const season = getSeason(place.lat, new Date(currentForm.dateRange.from));
       if (onThemeChange) onThemeChange(season);
     }
-    const resolvedKey = currentForm.apiKey || DEFAULT_API_KEY;
-    if (resolvedKey) {
-      classifyDestinationCost(place.fullName, resolvedKey, currentForm.model).then(setCostData);
+    if (currentForm.apiKey) {
+      classifyDestinationCost(place.fullName, currentForm.apiKey, currentForm.model).then(setCostData);
     }
   };
 
@@ -316,8 +312,6 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
       numPeople: totalTravelers,
       interests: form.interests.join(', '),
       additionalNotes: '',
-      apiKey: form.apiKey || DEFAULT_API_KEY,
-      model: form.model,
       _destinationMeta: form.destination,
       _travelers: form.travelers
     });
@@ -554,52 +548,7 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
           </div>
         </div>
 
-        {/* Settings toggle */}
-        <div className="border-t border-rule pt-4">
-          <button
-            type="button"
-            onClick={() => setShowSettings((s) => !s)}
-            className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors"
-          >
-            <ChevronDown size={12} className={`transition-transform ${showSettings ? 'rotate-180' : ''}`} />
-            {showSettings ? 'Hide Settings' : 'Settings'}
-          </button>
 
-          {showSettings && (
-            <div className="mt-4 space-y-4">
-              <div>
-                <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
-                  OpenRouter API Key
-                </label>
-                <input
-                  type="password"
-                  value={form.apiKey}
-                  onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
-                  placeholder="Using default key..."
-                  className="w-full px-3 py-3 border border-rule bg-cream text-ink placeholder-ink-muted focus:outline-none focus:border-terra transition-colors text-sm"
-                />
-                <p className="mt-1 text-[10px] text-ink-muted">
-                  Leave empty to use the default key. <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="underline hover:text-terra">Get your own</a>
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
-                  Model
-                </label>
-                <select
-                  value={form.model}
-                  onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-                  className="w-full px-3 py-3 border border-rule bg-cream text-ink text-sm focus:outline-none focus:border-terra"
-                >
-                  {MODELS.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Submit */}
         <button

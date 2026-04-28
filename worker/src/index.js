@@ -378,6 +378,63 @@ app.get('/api/profile', authMiddleware, async (c) => {
   return c.json({ pastTrips, bookmarks, spending });
 });
 
+// ─── LLM Proxy ───────────────────────────────────────────────
+
+app.post('/api/generate', async (c) => {
+  const body = await c.req.json();
+  const messages = body.messages;
+  const temperature = body.temperature ?? 0.4;
+  const maxTokens = body.maxTokens ?? 6000;
+
+  const apiKey = c.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    return c.json({ error: 'Server configuration error: no API key configured' }, 500);
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000);
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': c.env.APP_URL || 'https://atharva2099.github.io/Trip.AI',
+        'X-Title': 'Trip.AI'
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        top_p: 1,
+        include_reasoning: false,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return c.json({
+        error: errorData.error?.message || `OpenRouter error: ${response.status}`
+      }, response.status);
+    }
+
+    const data = await response.json();
+    return c.json({ content: data.choices[0].message.content });
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      return c.json({ error: 'Request timed out after 5 minutes' }, 504);
+    }
+    return c.json({ error: error.message }, 500);
+  }
+});
+
 // ─── Health ──────────────────────────────────────────────────
 
 app.get('/', (c) => c.json({ ok: true, service: 'tripai-api' }));

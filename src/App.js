@@ -230,7 +230,7 @@ function AppContent() {
           <>
             {/* Form area — centered when no itinerary */}
             {showForm && !hasItinerary && (
-              <div className="mt-16 max-w-lg mx-auto">
+              <div className="mt-16 max-w-lg md:max-w-2xl lg:max-w-3xl mx-auto">
                 <div className="mb-12 text-center">
                   <h1 className="font-serif text-5xl text-ink mb-4 tracking-tight">Plan your next adventure</h1>
                   <p className="text-ink-light text-sm max-w-md mx-auto leading-relaxed">
@@ -274,13 +274,11 @@ function AppContent() {
 
                 {/* Itinerary */}
                 <div className={showForm ? 'xl:col-span-4 xl:border-r border-rule' : 'xl:col-span-5 xl:border-r border-rule'}>
-                  <ItineraryDisplay
-                    itinerary={itinerary}
-                    tripData={tripData}
-                    onItineraryUpdate={handleItineraryUpdate}
-                    apiKey={tripData?.apiKey}
-                    model={tripData?.model}
-                  />
+              <ItineraryDisplay
+                itinerary={itinerary}
+                tripData={tripData}
+                onItineraryUpdate={handleItineraryUpdate}
+              />
                 </div>
 
                 {/* Map */}
