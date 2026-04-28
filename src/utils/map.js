@@ -106,21 +106,22 @@ export function computeJourneyStats(itinerary) {
       (a) => a.coordinates?.lat && a.coordinates?.lng && !isNaN(a.coordinates.lat)
     );
 
+    // Get hotel coordinates if available
+    const hotel = (day.accommodation_options || [])[0];
+    const hotelCoords = hotel?.coordinates;
+
     let dayDistance = 0;
     let dayDuration = 0;
     const legs = [];
 
-    for (let i = 1; i < activities.length; i++) {
-      const prev = activities[i - 1];
-      const curr = activities[i];
-
+    function addLeg(from, to, fromCoords, toCoords, mode = 'drive', durationStr = null) {
       const dist = calculateDistance(
-        prev.coordinates.lat, prev.coordinates.lng,
-        curr.coordinates.lat, curr.coordinates.lng
+        fromCoords.lat, fromCoords.lng,
+        toCoords.lat, toCoords.lng
       );
+      if (dist < 0.05) return null; // Skip negligible distances
 
-      const mode = curr.transport?.method || 'drive';
-      const parsedDuration = parseDurationMinutes(curr.transport?.duration);
+      const parsedDuration = parseDurationMinutes(durationStr);
       const estimatedDuration = estimateDuration(dist, mode);
       const durationMinutes = parsedDuration > 0 ? parsedDuration : estimatedDuration;
 
@@ -133,10 +134,10 @@ export function computeJourneyStats(itinerary) {
       transportModes[mode] = (transportModes[mode] || 0) + dist;
 
       const leg = {
-        from: prev.name,
-        to: curr.name,
-        fromCoords: prev.coordinates,
-        toCoords: curr.coordinates,
+        from,
+        to,
+        fromCoords,
+        toCoords,
         distance: dist,
         duration: durationMinutes,
         durationText: formatDuration(durationMinutes),
@@ -147,6 +148,88 @@ export function computeJourneyStats(itinerary) {
 
       if (dist > longestLeg.distance) {
         longestLeg = leg;
+      }
+      return leg;
+    }
+
+    // Hotel → first activity
+    if (hotelCoords && activities.length > 0) {
+      addLeg(
+        hotel.name || 'Hotel',
+        activities[0].name,
+        hotelCoords,
+        activities[0].coordinates,
+        activities[0].transport?.method || 'drive',
+        null
+      );
+    }
+
+    // Activity → activity
+    for (let i = 1; i < activities.length; i++) {
+      const prev = activities[i - 1];
+      const curr = activities[i];
+      addLeg(
+        prev.name,
+        curr.name,
+        prev.coordinates,
+        curr.coordinates,
+        curr.transport?.method || 'drive',
+        curr.transport?.duration
+      );
+    }
+
+    // Last activity → hotel
+    if (hotelCoords && activities.length > 0) {
+      const last = activities[activities.length - 1];
+      addLeg(
+        last.name,
+        hotel.name || 'Hotel',
+        last.coordinates,
+        hotelCoords,
+        last.transport?.method || 'drive',
+        null
+      );
+    }
+
+    // Inter-city: previous day hotel → current day hotel
+    if (dayIndex > 0) {
+      const prevDay = itinerary.days[dayIndex - 1];
+      const prevHotel = (prevDay.accommodation_options || [])[0];
+      if (prevHotel?.coordinates && hotelCoords) {
+        const dist = calculateDistance(
+          prevHotel.coordinates.lat, prevHotel.coordinates.lng,
+          hotelCoords.lat, hotelCoords.lng
+        );
+        if (dist > 1) { // Only count if meaningful distance
+          const mode = 'drive';
+          const durationMinutes = estimateDuration(dist, mode);
+
+          dayDistance += dist;
+          dayDuration += durationMinutes;
+          totalDistance += dist;
+          totalDurationMinutes += durationMinutes;
+          totalLegs++;
+
+          transportModes[mode] = (transportModes[mode] || 0) + dist;
+
+          const leg = {
+            from: prevHotel.name || 'Previous Hotel',
+            to: hotel.name || 'Hotel',
+            fromCoords: prevHotel.coordinates,
+            toCoords: hotelCoords,
+            distance: dist,
+            duration: durationMinutes,
+            durationText: formatDuration(durationMinutes),
+            mode,
+            day: dayIndex + 1,
+            isInterCity: true
+          };
+          legs.push(leg);
+
+          if (dist > longestLeg.distance) {
+            longestLeg = leg;
+          }
+        }
       }
     }
 
