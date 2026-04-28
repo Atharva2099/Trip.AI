@@ -2,7 +2,20 @@
 
 An AI-powered travel itinerary generator with an interactive map, real cost estimates, and a Vanta Punk editorial design language. Plan trips by destination, dates, budget, and interests — then refine every detail through conversational AI.
 
-Live at [tripai.pages.dev](https://tripai.pages.dev/)
+Live at [atharva2099.github.io/Trip.AI](https://atharva2099.github.io/Trip.AI/)
+
+---
+
+## Architecture
+
+```
+Frontend: GitHub Pages (React + Tailwind)
+Backend API: Cloudflare Workers (serverless, edge-computed)
+Database: Cloudflare D1 (SQLite at the edge)
+Auth: GitHub + Google OAuth2 with JWT sessions
+LLM: OpenRouter (bring-your-own-key)
+Maps: Leaflet + CartoDB + OpenStreetMap (Nominatim)
+```
 
 ---
 
@@ -52,6 +65,13 @@ Live at [tripai.pages.dev](https://tripai.pages.dev/)
 - **Custom scrollbar** — thin, warm-toned
 - **No cards, no shadows** — border-separated grid layouts
 
+### Auth & Cloud Persistence
+- **GitHub & Google OAuth2** — sign in with one click, no passwords
+- **JWT sessions** — custom JWT implementation using Web Crypto API, 30-day expiry
+- **Auto-save trips** — every generated itinerary is automatically saved to your account
+- **My Trips gallery** — browse, view, and delete all your saved itineraries
+- **Cloud database** — D1 SQLite with Row Level Security (users can only access their own data)
+
 ---
 
 ## Tech Stack
@@ -62,6 +82,9 @@ Live at [tripai.pages.dev](https://tripai.pages.dev/)
 - react-day-picker
 - lucide-react icons
 - date-fns
+- **Cloudflare Workers** — serverless edge API
+- **Cloudflare D1** — SQLite database with Row Level Security
+- **OAuth2 + JWT** — GitHub & Google auth, custom JWT implementation with Web Crypto API
 - OpenRouter API (bring-your-own-key)
 - Nominatim / OpenStreetMap (free geocoding)
 
