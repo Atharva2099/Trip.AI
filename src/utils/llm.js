@@ -183,13 +183,15 @@ export const generateItinerary = async (tripData) => {
     const systemPrompt = `As a travel planning assistant, generate a detailed itinerary in JSON format. Follow this EXACT structure (replace sample values):
 ${JSON.stringify(template, null, 2)}
 
-Important requirements:
-1. All JSON must be valid and match the template structure exactly
-2. All costs must be realistic for ${restTripData.destination}
-3. All locations must be real and verifiable
-4. Activities must be between 8:00-22:00
-5. Include exact coordinates for each location
-6. No duplicate activities or restaurants`;
+Critical geographic requirements:
+1. Each day's activities MUST be clustered within a small area (walking or 5-10 min drive apart). Never spread a single day's activities across a large region.
+2. Different days should explore DIFFERENT neighborhoods or areas of ${restTripData.destination}. Do not repeat the same area on multiple days.
+3. Transport between consecutive activities in a single day should be short (walk, taxi, or local transit under 15 min). No long scenic drives within one day.
+4. If the destination has distinct regions (north/south/east/west/downtown), assign each region to a different day.
+5. All locations must be real and verifiable with exact coordinates.
+6. All costs must be realistic for ${restTripData.destination}.
+7. Activities must be between 8:00-22:00.
+8. No duplicate activities or restaurants across the entire trip.`;
 
     const userPrompt = `Create a ${formattedDates.length}-day itinerary for ${restTripData.destination}:
 - Budget per person: $${budgetPerPerson}
@@ -199,11 +201,13 @@ Important requirements:
 
 Requirements:
 1. Each day needs 2-3 activities and 3 meals (breakfast, lunch, dinner)
-2. Include exact coordinates for each activity
-3. All activities between 8:00-22:00
-4. Include transport details between locations
-5. Stay within budget
-6. No duplicate activities or restaurants
+2. Activities within a single day must be close together (same neighborhood or district). Do NOT have one day span the entire destination.
+3. Spread different areas of ${restTripData.destination} across different days. For example, if there are north and south areas, put north activities on one day and south on another.
+4. Include exact coordinates for each activity
+5. All activities between 8:00-22:00
+6. Transport between locations should be short (walk, short taxi, or local transit)
+7. Stay within budget
+8. No duplicate activities or restaurants anywhere in the trip
 
 Return ONLY valid JSON matching the template structure exactly.`;
 
