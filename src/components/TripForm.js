@@ -13,18 +13,16 @@ import {
 import { searchPlaces, getPlaceIcon } from '../utils/nominatim';
 import { getSeason, getTheme } from '../utils/season';
 
-// ─── Constants ───────────────────────────────────────────────
-
 const INTERESTS = [
   { key: 'hiking', label: 'Hiking', icon: Mountain },
-  { key: 'food', label: 'Food & Drink', icon: UtensilsCrossed },
+  { key: 'food', label: 'Food', icon: UtensilsCrossed },
   { key: 'museums', label: 'Museums', icon: Landmark },
   { key: 'nightlife', label: 'Nightlife', icon: Moon },
   { key: 'relaxation', label: 'Relaxation', icon: Coffee },
   { key: 'shopping', label: 'Shopping', icon: ShoppingBag },
   { key: 'adventure', label: 'Adventure', icon: Compass },
-  { key: 'culture', label: 'Art & Culture', icon: Palette },
-  { key: 'beach', label: 'Beach & Water', icon: Umbrella },
+  { key: 'culture', label: 'Culture', icon: Palette },
+  { key: 'beach', label: 'Beach', icon: Umbrella },
   { key: 'family', label: 'Family', icon: Users },
   { key: 'romantic', label: 'Romantic', icon: Sparkles }
 ];
@@ -39,8 +37,8 @@ const PRESETS = [
 ];
 
 const MODELS = [
-  { value: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash (Fast)' },
-  { value: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro (Quality)' },
+  { value: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
+  { value: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
   { value: 'qwen/qwen3.6-max-preview', label: 'Qwen 3.6 Max' },
   { value: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
   { value: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (Free)' }
@@ -48,8 +46,6 @@ const MODELS = [
 
 const FALLBACK_MODEL = 'deepseek/deepseek-v4-flash';
 const LS_KEY = 'tripai_form_v2';
-
-// ─── Icon mapping for dynamic rendering ──────────────────────
 
 const IconMap = {
   MapPin, Building2, Globe, Camera, Trees, Waves, MountainSnow,
@@ -59,18 +55,14 @@ const IconMap = {
   AdventureIcon, Backpack, CalendarDays
 };
 
-// ─── Helper: Cost classification via LLM ─────────────────────
-
 async function classifyDestinationCost(destination, apiKey, model) {
   if (!apiKey || !destination) return null;
   const cacheKey = `cost_${destination}`;
   const cached = localStorage.getItem(cacheKey);
   if (cached) return JSON.parse(cached);
-
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
-
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       signal: controller.signal,
@@ -98,14 +90,11 @@ async function classifyDestinationCost(destination, apiKey, model) {
         include_reasoning: false
       })
     });
-
     clearTimeout(timeoutId);
     if (!response.ok) return null;
-
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     if (!content) return null;
-
     const parsed = JSON.parse(content);
     localStorage.setItem(cacheKey, JSON.stringify(parsed));
     return parsed;
@@ -114,46 +103,44 @@ async function classifyDestinationCost(destination, apiKey, model) {
   }
 }
 
-// ─── Sub-components ──────────────────────────────────────────
-
 function Stepper({ label, value, onChange, min = 0, max = 20 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-sm text-gray-600 w-16">{label}</span>
+      <span className="text-xs uppercase tracking-[0.14em] text-ink-light w-14">{label}</span>
       <button
         type="button"
         onClick={() => onChange(Math.max(min, value - 1))}
         disabled={value <= min}
-        className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="w-7 h-7 flex items-center justify-center border border-rule text-ink-light hover:border-terra hover:text-terra disabled:opacity-30 disabled:hover:border-rule disabled:hover:text-ink-light transition-colors"
       >
-        <Minus size={14} />
+        <Minus size={12} />
       </button>
-      <span className="w-6 text-center font-medium text-gray-800">{value}</span>
+      <span className="w-4 text-center text-sm font-medium text-ink">{value}</span>
       <button
         type="button"
         onClick={() => onChange(Math.min(max, value + 1))}
         disabled={value >= max}
-        className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="w-7 h-7 flex items-center justify-center border border-rule text-ink-light hover:border-terra hover:text-terra disabled:opacity-30 disabled:hover:border-rule disabled:hover:text-ink-light transition-colors"
       >
-        <Plus size={14} />
+        <Plus size={12} />
       </button>
     </div>
   );
 }
 
-function InterestChip({ interest, active, theme, onClick }) {
+function InterestChip({ interest, active, onClick }) {
   const Icon = interest.icon;
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all duration-200 ${
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-all ${
         active
-          ? (theme?.chipActive || 'bg-emerald-600 text-white border-emerald-600')
-          : (theme?.chipInactive || 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300')
+          ? 'bg-terra text-cream border-terra'
+          : 'bg-transparent text-ink-light border-rule hover:border-terra hover:text-terra'
       }`}
     >
-      <Icon size={14} />
+      <Icon size={13} strokeWidth={1.5} />
       {interest.label}
     </button>
   );
@@ -163,13 +150,10 @@ function SeasonIcon({ season }) {
   const theme = getTheme(season);
   const iconName = theme.icon;
   const Icon = IconMap[iconName] || Sun;
-  return <Icon size={16} className={theme.accent} />;
+  return <Icon size={14} className="text-terra" strokeWidth={1.5} />;
 }
 
-// ─── Main Component ──────────────────────────────────────────
-
 const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
-  // Load from localStorage or use defaults
   const loadInitial = () => {
     try {
       const saved = localStorage.getItem(LS_KEY);
@@ -204,39 +188,39 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
 
   useEffect(() => { formRef.current = form; }, [form]);
 
-  // Persist to localStorage
   useEffect(() => {
     localStorage.setItem(LS_KEY, JSON.stringify(form));
     localStorage.setItem('openrouter_api_key', form.apiKey);
     localStorage.setItem('openrouter_model', form.model);
   }, [form]);
 
-  // Close dropdowns on outside click
+  useEffect(() => {
+    setFormErrors((prev) => {
+      const next = { ...prev };
+      if (form.destination || form.destinationText.trim()) delete next.destination;
+      if (form.dateRange.from && form.dateRange.to) delete next.dates;
+      return next;
+    });
+  }, [form.destination, form.destinationText, form.dateRange.from, form.dateRange.to]);
+
   useEffect(() => {
     function handleClick(e) {
-      if (calendarRef.current && !calendarRef.current.contains(e.target)) {
-        setShowCalendar(false);
-      }
-      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) {
-        setShowSuggestions(false);
-      }
+      if (calendarRef.current && !calendarRef.current.contains(e.target)) setShowCalendar(false);
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) setShowSuggestions(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Nominatim autocomplete
   const handleDestinationInput = useCallback((text) => {
     setForm((f) => ({ ...f, destinationText: text, destination: null }));
     setShowSuggestions(true);
-
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     if (!text || text.length < 2) {
       setSuggestions([]);
       setLoadingSuggestions(false);
       return;
     }
-
     setLoadingSuggestions(true);
     searchTimeout.current = setTimeout(async () => {
       const results = await searchPlaces(text);
@@ -247,27 +231,18 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
 
   const selectDestination = (place) => {
     const currentForm = formRef.current;
-    setForm((f) => ({
-      ...f,
-      destination: place,
-      destinationText: place.fullName
-    }));
+    setForm((f) => ({ ...f, destination: place, destinationText: place.fullName }));
     setShowSuggestions(false);
     setSuggestions([]);
-
-    // Compute season and theme
     if (currentForm.dateRange?.from) {
       const season = getSeason(place.lat, new Date(currentForm.dateRange.from));
       if (onThemeChange) onThemeChange(season);
     }
-
-    // Fetch cost context
     if (currentForm.apiKey) {
       classifyDestinationCost(place.fullName, currentForm.apiKey, currentForm.model).then(setCostData);
     }
   };
 
-  // Budget helpers
   const totalTravelers = form.travelers.adults + form.travelers.children;
   const durationDays = form.dateRange.from && form.dateRange.to
     ? Math.max(1, differenceInDays(new Date(form.dateRange.to), new Date(form.dateRange.from)) + 1)
@@ -276,31 +251,12 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
     ? Math.round(form.budget / totalTravelers / durationDays)
     : 0;
 
-  const minBudget = totalTravelers * durationDays * 50;
-  const budgetTooLow = durationDays > 0 && form.budget < minBudget;
-
-  // Clear errors when user fixes fields
-  useEffect(() => {
-    setFormErrors((prev) => {
-      const next = { ...prev };
-      if (form.destination || form.destinationText.trim()) delete next.destination;
-      if (form.dateRange.from && form.dateRange.to) delete next.dates;
-      if (!budgetTooLow) delete next.budget;
-      return next;
-    });
-  }, [form.destination, form.destinationText, form.dateRange.from, form.dateRange.to, budgetTooLow]);
-
-  // Date helpers
   const handleDateSelect = (range) => {
     if (!range) return;
     const currentForm = formRef.current;
     setForm((f) => ({ ...f, dateRange: { from: range.from || null, to: range.to || null } }));
-
-    if (range.from && !range.to) {
-      // Only start selected
-    } else if (range.from && range.to) {
+    if (range.from && range.to) {
       setShowCalendar(false);
-      // Recompute season if destination known
       if (currentForm.destination) {
         const season = getSeason(currentForm.destination.lat, new Date(range.from));
         if (onThemeChange) onThemeChange(season);
@@ -320,7 +276,6 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
     }
   };
 
-  // Interest toggle
   const toggleInterest = (key) => {
     setForm((f) => {
       const exists = f.interests.includes(key);
@@ -331,7 +286,6 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
     });
   };
 
-  // Preset select
   const applyPreset = (preset) => {
     setForm((f) => ({
       ...f,
@@ -341,20 +295,11 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
     }));
   };
 
-  // Submit
   const handleSubmit = (e) => {
     e.preventDefault();
     const errors = {};
-    if (!form.destination && !form.destinationText.trim()) {
-      errors.destination = 'Please enter a destination';
-    }
-    if (!form.dateRange.from || !form.dateRange.to) {
-      errors.dates = 'Please select your travel dates';
-    }
-    if (budgetTooLow) {
-      errors.budget = `Minimum budget is $${minBudget} for ${totalTravelers} travelers over ${durationDays} days.`;
-    }
-
+    if (!form.destination && !form.destinationText.trim()) errors.destination = 'Please enter a destination';
+    if (!form.dateRange.from || !form.dateRange.to) errors.dates = 'Please select your travel dates';
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
@@ -370,53 +315,44 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
       additionalNotes: '',
       apiKey: form.apiKey,
       model: form.model,
-      // Pass enriched data for future use
       _destinationMeta: form.destination,
       _travelers: form.travelers
     });
   };
 
   const currentTheme = theme ? getTheme(theme) : null;
-  const seasonLabel = currentTheme ? currentTheme.name : '';
 
   return (
-    <div className="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-gray-100 p-6">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-6">Plan Your Trip</h2>
+    <div className="bg-cream-dark border border-rule p-8">
+      <form onSubmit={handleSubmit} className="space-y-8">
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-
-        {/* ── Destination ── */}
+        {/* Destination */}
         <div className="relative" ref={suggestionsRef}>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Where are you going?
+          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
+            Destination
           </label>
           <div className="relative">
-            <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" strokeWidth={1.5} />
             <input
               type="text"
               value={form.destinationText}
               onChange={(e) => handleDestinationInput(e.target.value)}
               onFocus={() => form.destinationText.length >= 2 && setShowSuggestions(true)}
-              placeholder="Search for a city, country, or place..."
-              className={`w-full pl-9 pr-3 py-2.5 rounded-lg border text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 transition-all ${
-                currentTheme?.ring || 'focus:ring-emerald-500'
-              } border-gray-200`}
+              placeholder="Search for a city or place..."
+              className="w-full pl-9 pr-3 py-3 border border-rule bg-cream text-ink placeholder-ink-muted focus:outline-none focus:border-terra transition-colors text-sm"
               required
             />
             {loadingSuggestions && (
               <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                <div className="w-3 h-3 border border-rule border-t-terra rounded-full animate-spin" />
               </div>
             )}
           </div>
-
           {formErrors.destination && (
-            <p className="mt-1.5 text-xs text-red-600">{formErrors.destination}</p>
+            <p className="mt-2 text-xs text-terra">{formErrors.destination}</p>
           )}
-
-          {/* Suggestions dropdown */}
           {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden">
+            <div className="absolute z-20 w-full mt-1 bg-cream border border-rule shadow-lg">
               {suggestions.map((place) => {
                 const iconName = getPlaceIcon(place.type, place.class);
                 const Icon = IconMap[iconName] || MapPin;
@@ -425,12 +361,12 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
                     key={place.id}
                     type="button"
                     onClick={() => selectDestination(place)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-left transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-cream-dark text-left transition-colors border-b border-rule last:border-b-0"
                   >
-                    <Icon size={16} className="text-gray-400 shrink-0" />
+                    <Icon size={14} className="text-ink-muted shrink-0" strokeWidth={1.5} />
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-gray-800 truncate">{place.name}</div>
-                      <div className="text-xs text-gray-500 truncate">{place.fullName}</div>
+                      <div className="text-sm text-ink truncate">{place.name}</div>
+                      <div className="text-xs text-ink-muted truncate">{place.fullName}</div>
                     </div>
                   </button>
                 );
@@ -439,51 +375,42 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
           )}
         </div>
 
-        {/* ── Dates ── */}
+        {/* Dates */}
         <div className="relative" ref={calendarRef}>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            When?
+          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
+            Dates
           </label>
           <button
             type="button"
             onClick={() => setShowCalendar((s) => !s)}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-left focus:outline-none focus:ring-2 transition-all ${
-              currentTheme?.ring || 'focus:ring-emerald-500'
-            } border-gray-200 bg-white`}
+            className="w-full flex items-center justify-between px-3 py-3 border border-rule bg-cream text-left focus:outline-none focus:border-terra transition-colors"
           >
             <div className="flex items-center gap-2">
-              <CalendarDays size={16} className="text-gray-400" />
+              <CalendarDays size={14} className="text-ink-muted" strokeWidth={1.5} />
               {form.dateRange.from && form.dateRange.to ? (
-                <span className="text-sm text-gray-800">
-                  {format(new Date(form.dateRange.from), 'MMM d')} - {format(new Date(form.dateRange.to), 'MMM d, yyyy')}
-                  <span className="text-gray-400 ml-2">
-                    ({durationDays} day{durationDays !== 1 ? 's' : ''})
-                  </span>
+                <span className="text-sm text-ink">
+                  {format(new Date(form.dateRange.from), 'MMM d')} — {format(new Date(form.dateRange.to), 'MMM d, yyyy')}
+                  <span className="text-ink-muted ml-2">({durationDays} day{durationDays !== 1 ? 's' : ''})</span>
                 </span>
               ) : form.dateRange.from ? (
-                <span className="text-sm text-gray-800">
-                  {format(new Date(form.dateRange.from), 'MMM d')} - Select end date
-                </span>
+                <span className="text-sm text-ink">{format(new Date(form.dateRange.from), 'MMM d')} — Select end</span>
               ) : (
-                <span className="text-sm text-gray-400">Pick a date range</span>
+                <span className="text-sm text-ink-muted">Pick a date range</span>
               )}
             </div>
             <div className="flex items-center gap-2">
               {currentTheme && (
-                <span className="flex items-center gap-1 text-xs text-gray-500">
+                <span className="flex items-center gap-1 text-xs text-ink-light">
                   <SeasonIcon season={theme} />
-                  {seasonLabel}
+                  {currentTheme.name}
                 </span>
               )}
-              <ChevronDown size={14} className="text-gray-400" />
+              <ChevronDown size={12} className="text-ink-muted" />
             </div>
           </button>
-
           {formErrors.dates && (
-            <p className="mt-1.5 text-xs text-red-600">{formErrors.dates}</p>
+            <p className="mt-2 text-xs text-terra">{formErrors.dates}</p>
           )}
-
-          {/* Quick presets */}
           <div className="flex gap-2 mt-2">
             {[
               { label: 'Weekend', days: 2 },
@@ -495,16 +422,14 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
                 key={p.label}
                 type="button"
                 onClick={() => quickDatePreset(p.days)}
-                className="text-xs px-2.5 py-1 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                className="text-[10px] uppercase tracking-[0.14em] px-2 py-1 border border-rule text-ink-light hover:border-terra hover:text-terra transition-colors"
               >
                 {p.label}
               </button>
             ))}
           </div>
-
-          {/* Calendar popup */}
           {showCalendar && (
-            <div className="absolute z-20 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 p-3">
+            <div className="absolute z-20 mt-2 bg-cream border border-rule shadow-lg p-3">
               <DayPicker
                 mode="range"
                 numberOfMonths={2}
@@ -515,64 +440,44 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
                   to: form.dateRange.to ? new Date(form.dateRange.to) : undefined
                 }}
                 onSelect={handleDateSelect}
-                disabled={[
-                  { before: startOfToday() }
-                ]}
-                modifiers={{
-                  today: new Date()
-                }}
+                disabled={[{ before: startOfToday() }]}
                 modifiersClassNames={{
                   today: 'font-bold',
-                  selected: 'bg-emerald-600 text-white rounded-full',
-                  range_start: 'bg-emerald-600 text-white rounded-l-full',
-                  range_end: 'bg-emerald-600 text-white rounded-r-full',
-                  range_middle: 'bg-emerald-100 text-emerald-800'
+                  selected: 'bg-terra text-cream',
+                  range_start: 'bg-terra text-cream',
+                  range_end: 'bg-terra text-cream',
+                  range_middle: 'bg-terra/20 text-terra'
                 }}
               />
-              <div className="text-xs text-gray-400 mt-2 text-center">
-                Maximum trip length: 14 days
+              <div className="text-[10px] uppercase tracking-[0.14em] text-ink-muted mt-2 text-center">
+                Maximum: 14 days
               </div>
             </div>
           )}
         </div>
 
-        {/* ── Travelers ── */}
+        {/* Travelers */}
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Who is traveling?
+          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-3">
+            Travelers
           </label>
           <div className="space-y-2">
-            <Stepper
-              label="Adults"
-              value={form.travelers.adults}
-              onChange={(v) => setForm((f) => ({ ...f, travelers: { ...f.travelers, adults: v } }))}
-              min={1}
-              max={20}
-            />
-            <Stepper
-              label="Children"
-              value={form.travelers.children}
-              onChange={(v) => setForm((f) => ({ ...f, travelers: { ...f.travelers, children: v } }))}
-              min={0}
-              max={10}
-            />
+            <Stepper label="Adults" value={form.travelers.adults} onChange={(v) => setForm((f) => ({ ...f, travelers: { ...f.travelers, adults: v } }))} min={1} max={20} />
+            <Stepper label="Children" value={form.travelers.children} onChange={(v) => setForm((f) => ({ ...f, travelers: { ...f.travelers, children: v } }))} min={0} max={10} />
           </div>
         </div>
 
-        {/* ── Budget ── */}
+        {/* Budget */}
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-3">
             Budget
           </label>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-lg font-semibold text-gray-800">${form.budget.toLocaleString()}</span>
+          <div className="flex items-baseline gap-3 mb-2">
+            <span className="font-serif text-2xl text-ink">${form.budget.toLocaleString()}</span>
             {durationDays > 0 && totalTravelers > 0 && (
-              <span className="text-sm text-gray-500">
-                ${perPersonPerDay}/person/day
-              </span>
+              <span className="text-xs text-ink-light">${perPersonPerDay}/person/day</span>
             )}
           </div>
-
           <input
             type="range"
             min={500}
@@ -580,37 +485,30 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
             step={100}
             value={form.budget}
             onChange={(e) => setForm((f) => ({ ...f, budget: parseInt(e.target.value) }))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+            className="w-full h-[2px] bg-rule appearance-none cursor-pointer accent-terra"
           />
-          <div className="flex justify-between text-xs text-gray-400 mt-1">
+          <div className="flex justify-between text-[10px] uppercase tracking-[0.14em] text-ink-muted mt-2">
             <span>$500</span>
             <span>$20,000</span>
           </div>
-
           {costData && (
-            <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
-              <span className="font-medium">{costData.description || costData.tier}</span>
+            <div className="mt-3 text-xs text-ink-light border-l-2 border-terra pl-3">
+              <span className="font-medium text-ink">{costData.description || costData.tier}</span>
               {costData.minDaily && costData.maxDaily && (
-                <span> — typical daily cost ${costData.minDaily}-${costData.maxDaily}/person</span>
+                <span> — typical ${costData.minDaily}-${costData.maxDaily}/person/day</span>
               )}
-            </div>
-          )}
-
-          {(budgetTooLow || formErrors.budget) && (
-            <div className="mt-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">
-              {formErrors.budget || `Budget too low. Minimum is $${minBudget} for ${totalTravelers} travelers over ${durationDays} days.`}
             </div>
           )}
         </div>
 
-        {/* ── Interests ── */}
+        {/* Interests */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              What are you into?
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-[10px] uppercase tracking-[0.14em] text-ink-light">
+              Interests
             </label>
             {form.interests.length >= 5 && (
-              <span className="text-xs text-amber-600">Max 5 selected</span>
+              <span className="text-[10px] text-terra">Max 5</span>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -619,17 +517,16 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
                 key={interest.key}
                 interest={interest}
                 active={form.interests.includes(interest.key)}
-                theme={currentTheme}
                 onClick={() => toggleInterest(interest.key)}
               />
             ))}
           </div>
         </div>
 
-        {/* ── Presets ── */}
+        {/* Presets */}
         <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Quick start
+          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-3">
+            Quick Start
           </label>
           <div className="flex flex-wrap gap-2">
             {PRESETS.map((preset) => {
@@ -640,13 +537,13 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
                   key={preset.key}
                   type="button"
                   onClick={() => applyPreset(preset)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-all ${
                     active
-                      ? (currentTheme?.chipActive || 'bg-emerald-600 text-white border-emerald-600')
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      ? 'bg-terra text-cream border-terra'
+                      : 'bg-transparent text-ink-light border-rule hover:border-terra hover:text-terra'
                   }`}
                 >
-                  <Icon size={14} />
+                  <Icon size={13} strokeWidth={1.5} />
                   {preset.label}
                 </button>
               );
@@ -654,9 +551,9 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
           </div>
         </div>
 
-        {/* ── Divider ── */}
-        <div className="border-t border-gray-100 pt-4">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+        {/* Divider */}
+        <div className="border-t border-rule pt-6">
+          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
             OpenRouter API Key
           </label>
           <input
@@ -664,24 +561,20 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
             value={form.apiKey}
             onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
             placeholder="sk-or-v1-..."
-            className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all ${
-              currentTheme?.ring || 'focus:ring-emerald-500'
-            } border-gray-200`}
+            className="w-full px-3 py-3 border border-rule bg-cream text-ink placeholder-ink-muted focus:outline-none focus:border-terra transition-colors text-sm"
             required
           />
-          <p className="mt-1 text-xs text-gray-400">
-            Your key is stored locally. <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="underline">Get a key</a>
+          <p className="mt-1 text-[10px] text-ink-muted">
+            Stored locally. <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="underline hover:text-terra">Get a key</a>
           </p>
 
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-1.5">
+          <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mt-4 mb-2">
             Model
           </label>
           <select
             value={form.model}
             onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-            className={`w-full px-3 py-2.5 rounded-lg border text-sm bg-white focus:outline-none focus:ring-2 transition-all ${
-              currentTheme?.ring || 'focus:ring-emerald-500'
-            } border-gray-200`}
+            className="w-full px-3 py-3 border border-rule bg-cream text-ink text-sm focus:outline-none focus:border-terra"
           >
             {MODELS.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
@@ -689,14 +582,14 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
           </select>
         </div>
 
-        {/* ── Submit ── */}
+        {/* Submit */}
         <button
           type="submit"
-          disabled={disabled || budgetTooLow}
-          className={`w-full py-3 rounded-xl text-white font-medium transition-all ${
-            disabled || budgetTooLow
-              ? 'bg-gray-300 cursor-not-allowed'
-              : `${currentTheme?.accentBg || 'bg-emerald-600'} ${currentTheme?.accentBgHover || 'hover:bg-emerald-700'} shadow-md hover:shadow-lg`
+          disabled={disabled}
+          className={`w-full py-4 text-xs font-medium uppercase tracking-[0.14em] transition-colors ${
+            disabled
+              ? 'bg-cream-dark text-ink-muted border border-rule cursor-not-allowed'
+              : 'bg-terra text-cream hover:bg-terra-dark'
           }`}
         >
           {disabled ? 'Generating...' : 'Generate Itinerary'}

@@ -23,16 +23,11 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      console.log('Form submitted with data:', formData);
       setTripData(formData);
-
       const result = await generateItinerary(formData);
-      console.log('Generated itinerary:', result);
-
       setItinerary(result.itinerary);
       setShowForm(false);
     } catch (err) {
-      console.error('Error in handleTripSubmit:', err);
       setError(err.message || 'Failed to generate itinerary. Please try again.');
     } finally {
       setLoading(false);
@@ -51,45 +46,53 @@ function App() {
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-700 ${currentTheme?.bg || 'bg-gray-50'}`}>
-      {/* Sticky header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-gray-100">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Compass size={24} className="text-gray-800" />
-            <h1 className="text-xl font-bold text-gray-800">Trip.AI</h1>
+    <div className="min-h-screen bg-cream text-ink antialiased font-sans">
+      {/* Nav bar — warm near-black */}
+      <nav className="sticky top-0 z-50 bg-ink border-b border-ink-light/20">
+        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Compass size={20} className="text-cream" strokeWidth={1.5} />
+            <span className="font-serif text-xl text-cream tracking-tight">Trip.AI</span>
           </div>
           {hasItinerary && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowForm((s) => !s)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm transition-all"
+                className="flex items-center gap-2 px-4 py-2 text-xs font-medium uppercase tracking-[0.14em] text-cream/80 hover:text-cream border border-cream/20 hover:border-cream/40 transition-colors"
               >
-                {showForm ? <X size={14} /> : <Edit3 size={14} />}
-                {showForm ? 'Close' : 'Edit Search'}
+                {showForm ? <X size={13} /> : <Edit3 size={13} />}
+                {showForm ? 'Close' : 'Edit'}
               </button>
               <button
                 onClick={handleNewTrip}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-800 text-white hover:bg-gray-700 shadow-sm transition-all"
+                className="flex items-center gap-2 px-4 py-2 text-xs font-medium uppercase tracking-[0.14em] bg-terra text-cream hover:bg-terra-dark transition-colors"
               >
-                <Plus size={14} />
+                <Plus size={13} />
                 New Trip
               </button>
             </div>
           )}
         </div>
-      </header>
+      </nav>
 
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 text-sm">
+          <div className="mt-8 bg-terra/10 border-l-2 border-terra text-terra px-5 py-3 text-sm">
             {error}
           </div>
         )}
 
-        {/* Form — centered when no results, sidebar when results exist */}
+        {/* Form area */}
         {showForm && (
-          <div className={`mb-6 ${hasItinerary ? 'lg:float-left lg:w-96 lg:mr-6 lg:mb-0' : 'max-w-xl mx-auto'}`}>
+          <div className={`${hasItinerary ? 'mt-8 max-w-md' : 'mt-16 max-w-lg mx-auto'}`}>
+            {!hasItinerary && (
+              <div className="mb-12 text-center">
+                <h1 className="font-serif text-5xl text-ink mb-4 tracking-tight">Plan your next adventure</h1>
+                <p className="text-ink-light text-sm max-w-md mx-auto leading-relaxed">
+                  Tell us where you want to go, and our AI will craft a detailed itinerary with real places, costs, and routes.
+                </p>
+              </div>
+            )}
             <TripForm
               onSubmit={handleTripSubmit}
               disabled={loading}
@@ -99,22 +102,20 @@ function App() {
           </div>
         )}
 
-        {/* Loading state */}
+        {/* Loading */}
         {loading && (
-          <div className="max-w-xl mx-auto mb-8">
-            <div className="bg-white/80 backdrop-blur rounded-2xl shadow-lg border border-gray-100 p-8 text-center">
-              <div className={`animate-spin rounded-full h-10 w-10 border-b-2 mx-auto ${currentTheme?.accent?.replace('text-', 'border-') || 'border-emerald-600'}`}></div>
-              <p className="mt-4 text-gray-600 font-medium">Building your trip...</p>
-              <p className="mt-1 text-sm text-gray-400">This usually takes 1-3 minutes</p>
-            </div>
+          <div className="mt-16 max-w-lg mx-auto text-center">
+            <div className="border-t-2 border-terra w-12 mx-auto mb-6 animate-pulse" />
+            <p className="font-serif text-2xl text-ink mb-2">Curating your trip</p>
+            <p className="text-ink-muted text-sm">This usually takes 1–3 minutes</p>
           </div>
         )}
 
-        {/* Results: itinerary + map */}
+        {/* Results */}
         {hasItinerary && (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-            {/* Itinerary — narrower on desktop so map gets more room */}
-            <div className="xl:col-span-5 space-y-6">
+          <div className="mt-12 grid grid-cols-1 xl:grid-cols-12 gap-0">
+            {/* Itinerary */}
+            <div className="xl:col-span-5 xl:border-r border-rule">
               <ItineraryDisplay
                 itinerary={itinerary}
                 tripData={tripData}
@@ -124,9 +125,9 @@ function App() {
               />
             </div>
 
-            {/* Map — taller and wider on desktop */}
+            {/* Map */}
             <div className="xl:col-span-7">
-              <div className="h-[500px] lg:h-[85vh] bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden sticky top-20">
+              <div className="h-[500px] lg:h-[85vh] bg-cream-dark border-b border-rule xl:border-b-0 sticky top-[57px]">
                 <TripMap itinerary={itinerary} />
               </div>
             </div>

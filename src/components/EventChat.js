@@ -84,7 +84,7 @@ const EventChat = ({ event, onClose, onEventUpdate, isActivity = true, currentIt
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg w-full max-w-md flex flex-col h-[600px]">
+      <div className="bg-cream border border-rule w-full max-w-md flex flex-col h-[600px]">
         {/* Header */}
         <div className="p-4 border-b flex justify-between items-center">
           <h3 className="font-semibold text-lg">
@@ -92,7 +92,7 @@ const EventChat = ({ event, onClose, onEventUpdate, isActivity = true, currentIt
           </h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 rounded-full p-1 hover:bg-gray-100"
+            className="text-ink-muted hover:text-ink p-1 hover:bg-cream-dark transition-colors"
             aria-label="Close"
           >
             <X size={20} />
@@ -109,8 +109,8 @@ const EventChat = ({ event, onClose, onEventUpdate, isActivity = true, currentIt
               <div
                 className={`max-w-[80%] p-3 rounded-lg ${
                   msg.role === 'user'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-800'
+                    ? 'bg-terra text-cream'
+                    : 'bg-cream-dark text-ink'
                 }`}
               >
                 {msg.content}
@@ -119,11 +119,11 @@ const EventChat = ({ event, onClose, onEventUpdate, isActivity = true, currentIt
           ))}
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-gray-100 p-3 rounded-lg">
+              <div className="bg-cream-dark p-3">
                 <div className="flex space-x-2">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                  <div className="w-2 h-2 bg-ink-muted animate-bounce" />
+                  <div className="w-2 h-2 bg-ink-muted animate-bounce" style={{ animationDelay: '0.2s' }} />
+                  <div className="w-2 h-2 bg-ink-muted animate-bounce" style={{ animationDelay: '0.4s' }} />
                 </div>
               </div>
             </div>
@@ -145,7 +145,7 @@ const EventChat = ({ event, onClose, onEventUpdate, isActivity = true, currentIt
             <button
               type="submit"
               disabled={isLoading || !message.trim()}
-              className="bg-blue-500 text-white px-4 py-2 rounded-lg disabled:bg-blue-300 hover:bg-blue-600 transition-colors"
+              className="bg-terra text-cream px-4 py-2 disabled:bg-cream-dark disabled:text-ink-muted hover:bg-terra-dark transition-colors"
             >
               Send
             </button>

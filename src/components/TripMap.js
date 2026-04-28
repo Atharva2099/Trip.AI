@@ -16,10 +16,10 @@ import {
 
 // ─── Custom marker icons ─────────────────────────────────────
 
-const createCustomIcon = (dayNumber, isActive) => {
+const createCustomIcon = (dayNumber) => {
   const colors = [
-    '#6366F1', '#EC4899', '#F59E0B', '#10B981',
-    '#3B82F6', '#8B5CF6', '#EF4444', '#14B8A6'
+    '#C9593A', '#6B5C4A', '#1A1208', '#B0A090',
+    '#8B7355', '#A08060', '#5C4A3A', '#D8D0C4'
   ];
   const color = colors[(dayNumber - 1) % colors.length];
 
@@ -30,16 +30,14 @@ const createCustomIcon = (dayNumber, isActive) => {
         width: 28px;
         height: 28px;
         background: ${color};
-        border: 3px solid white;
-        border-radius: 50%;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        border: 2px solid #F5F0E8;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: white;
+        color: #F5F0E8;
         font-size: 11px;
-        font-weight: 700;
-        font-family: system-ui, sans-serif;
+        font-weight: 600;
+        font-family: 'Inter', system-ui, sans-serif;
       ">${dayNumber}</div>
     `,
     iconSize: [28, 28],
@@ -52,64 +50,44 @@ const createCustomIcon = (dayNumber, isActive) => {
 
 function MarkerPopup({ point, prevLeg, nextLeg }) {
   return (
-    <div className="min-w-[220px] max-w-[280px]">
+    <div className="min-w-[200px] max-w-[260px] font-sans">
       <div className="flex items-center gap-2 mb-1">
         <span
-          className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded text-white"
+          className="text-[9px] uppercase tracking-[0.14em] px-1.5 py-0.5 text-cream"
           style={{ backgroundColor: point.dayColor }}
         >
           Day {point.dayNumber}
         </span>
-        {point.time && (
-          <span className="text-xs text-gray-500">{point.time}</span>
-        )}
+        {point.time && <span className="text-xs text-ink-muted">{point.time}</span>}
       </div>
-
-      <h3 className="font-bold text-gray-800 text-sm leading-tight mb-1">
-        {point.name}
-      </h3>
-      <p className="text-xs text-gray-500 line-clamp-2 mb-2">
-        {point.description}
-      </p>
-
-      {point.cost !== undefined && (
-        <p className="text-xs font-medium text-gray-700 mb-2">
-          ${point.cost}
-        </p>
-      )}
+      <h3 className="font-serif text-base text-ink leading-tight mb-1">{point.name}</h3>
+      <p className="text-xs text-ink-light line-clamp-2 mb-2">{point.description}</p>
+      {point.cost !== undefined && <p className="text-xs font-medium text-ink mb-2">${point.cost}</p>}
 
       {prevLeg && (
-        <div className="border-t border-gray-100 pt-2 mb-2">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-            Getting here
-          </p>
-          <p className="text-xs text-gray-600">
-            From <span className="font-medium">{prevLeg.from}</span>
-          </p>
-          <div className="flex items-center gap-3 mt-0.5">
-            <span className="text-xs text-gray-500">{formatDistance(prevLeg.distance)}</span>
-            <span className="text-xs text-gray-400">•</span>
-            <span className="text-xs text-gray-500">{prevLeg.durationText}</span>
-            <span className="text-xs text-gray-400">•</span>
-            <span className="text-xs text-gray-500 capitalize">{prevLeg.mode}</span>
+        <div className="border-t border-rule pt-2 mb-2">
+          <p className="text-[9px] uppercase tracking-[0.14em] text-ink-muted mb-1">Getting Here</p>
+          <p className="text-xs text-ink-light">From <span className="text-ink">{prevLeg.from}</span></p>
+          <div className="flex items-center gap-2 mt-0.5 text-xs text-ink-muted">
+            <span>{formatDistance(prevLeg.distance)}</span>
+            <span>•</span>
+            <span>{prevLeg.durationText}</span>
+            <span>•</span>
+            <span className="capitalize">{prevLeg.mode}</span>
           </div>
         </div>
       )}
 
       {nextLeg && (
-        <div className="border-t border-gray-100 pt-2 mb-2">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-            Next stop
-          </p>
-          <p className="text-xs text-gray-600">
-            To <span className="font-medium">{nextLeg.to}</span>
-          </p>
-          <div className="flex items-center gap-3 mt-0.5">
-            <span className="text-xs text-gray-500">{formatDistance(nextLeg.distance)}</span>
-            <span className="text-xs text-gray-400">•</span>
-            <span className="text-xs text-gray-500">{nextLeg.durationText}</span>
-            <span className="text-xs text-gray-400">•</span>
-            <span className="text-xs text-gray-500 capitalize">{nextLeg.mode}</span>
+        <div className="border-t border-rule pt-2 mb-2">
+          <p className="text-[9px] uppercase tracking-[0.14em] text-ink-muted mb-1">Next Stop</p>
+          <p className="text-xs text-ink-light">To <span className="text-ink">{nextLeg.to}</span></p>
+          <div className="flex items-center gap-2 mt-0.5 text-xs text-ink-muted">
+            <span>{formatDistance(nextLeg.distance)}</span>
+            <span>•</span>
+            <span>{nextLeg.durationText}</span>
+            <span>•</span>
+            <span className="capitalize">{nextLeg.mode}</span>
           </div>
         </div>
       )}
@@ -118,10 +96,10 @@ function MarkerPopup({ point, prevLeg, nextLeg }) {
         href={`https://www.google.com/maps/dir/?api=1&destination=${point.coordinates.lat},${point.coordinates.lng}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 mt-1"
+        className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-terra hover:text-terra-dark transition-colors"
         onClick={(e) => e.stopPropagation()}
       >
-        <Navigation size={12} />
+        <Navigation size={10} />
         Get Directions
       </a>
     </div>
@@ -132,10 +110,10 @@ function MarkerPopup({ point, prevLeg, nextLeg }) {
 
 function TransportIcon({ mode }) {
   const m = mode?.toLowerCase() || '';
-  if (m.includes('walk')) return <Footprints size={14} />;
-  if (m.includes('bus') || m.includes('transit')) return <Bus size={14} />;
-  if (m.includes('train')) return <Train size={14} />;
-  return <Car size={14} />;
+  if (m.includes('walk')) return <Footprints size={13} strokeWidth={1.5} />;
+  if (m.includes('bus') || m.includes('transit')) return <Bus size={13} strokeWidth={1.5} />;
+  if (m.includes('train')) return <Train size={13} strokeWidth={1.5} />;
+  return <Car size={13} strokeWidth={1.5} />;
 }
 
 // ─── Journey stats panel ─────────────────────────────────────
@@ -148,73 +126,56 @@ function JourneyStatsPanel({ stats, onClose, activeDay, onDayClick }) {
     : stats.dayStats;
 
   return (
-    <div className="absolute top-14 right-3 z-[400] w-72 bg-white/95 backdrop-blur rounded-xl shadow-xl border border-gray-100 max-h-[70vh] overflow-y-auto">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+    <div className="absolute top-14 right-3 z-[400] w-64 bg-cream border border-rule shadow-xl max-h-[70vh] overflow-y-auto">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-rule">
         <div className="flex items-center gap-2">
-          <BarChart3 size={16} className="text-gray-500" />
-          <span className="font-semibold text-sm text-gray-800">Journey Stats</span>
+          <BarChart3 size={14} className="text-ink-muted" strokeWidth={1.5} />
+          <span className="text-xs font-medium text-ink uppercase tracking-[0.14em]">Stats</span>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
-        >
-          <X size={14} />
+        <button onClick={onClose} className="p-1 hover:bg-cream-dark text-ink-muted transition-colors">
+          <X size={12} />
         </button>
       </div>
 
-      <div className="px-4 py-3 space-y-3">
-        {/* Overview */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-gray-50 rounded-lg p-2.5 text-center">
-            <MapIcon size={16} className="mx-auto text-gray-400 mb-1" />
-            <p className="text-lg font-bold text-gray-800">{formatDistance(stats.totalDistance)}</p>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Total Distance</p>
+      <div className="px-4 py-4 space-y-4">
+        <div className="grid grid-cols-2 gap-0 border-t border-rule">
+          <div className="py-3 border-r border-rule">
+            <MapIcon size={14} className="text-ink-muted mb-1" strokeWidth={1.5} />
+            <p className="font-serif text-lg text-ink">{formatDistance(stats.totalDistance)}</p>
+            <p className="text-[9px] uppercase tracking-[0.14em] text-ink-muted">Total Distance</p>
           </div>
-          <div className="bg-gray-50 rounded-lg p-2.5 text-center">
-            <Clock size={16} className="mx-auto text-gray-400 mb-1" />
-            <p className="text-lg font-bold text-gray-800">{stats.totalDurationText}</p>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Travel Time</p>
+          <div className="py-3 pl-3">
+            <Clock size={14} className="text-ink-muted mb-1" strokeWidth={1.5} />
+            <p className="font-serif text-lg text-ink">{stats.totalDurationText}</p>
+            <p className="text-[9px] uppercase tracking-[0.14em] text-ink-muted">Travel Time</p>
           </div>
         </div>
 
-        {/* Longest leg */}
         {stats.longestLeg.distance > 0 && (
-          <div className="bg-amber-50 rounded-lg p-3">
+          <div className="border-l-2 border-terra pl-3 py-2">
             <div className="flex items-center gap-1.5 mb-1">
-              <TrendingUp size={12} className="text-amber-600" />
-              <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide">
-                Longest Leg
-              </span>
+              <TrendingUp size={11} className="text-terra" strokeWidth={1.5} />
+              <span className="text-[9px] uppercase tracking-[0.14em] text-terra">Longest Leg</span>
             </div>
-            <p className="text-xs text-gray-700">
-              {stats.longestLeg.from} → {stats.longestLeg.to}
-            </p>
-            <p className="text-xs text-gray-500">
-              {formatDistance(stats.longestLeg.distance)} • {stats.longestLeg.durationText} • Day {stats.longestLeg.day}
-            </p>
+            <p className="text-xs text-ink">{stats.longestLeg.from} → {stats.longestLeg.to}</p>
+            <p className="text-xs text-ink-light">{formatDistance(stats.longestLeg.distance)} • {stats.longestLeg.durationText} • Day {stats.longestLeg.day}</p>
           </div>
         )}
 
-        {/* Transport breakdown */}
         {stats.transportBreakdown.length > 0 && (
           <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
-              Transport Breakdown
-            </p>
-            <div className="space-y-1.5">
+            <p className="text-[9px] uppercase tracking-[0.14em] text-ink-muted mb-2">Transport</p>
+            <div className="space-y-2">
               {stats.transportBreakdown.map((t) => (
                 <div key={t.mode} className="flex items-center gap-2">
                   <TransportIcon mode={t.mode} />
                   <div className="flex-1">
                     <div className="flex justify-between text-xs mb-0.5">
-                      <span className="capitalize text-gray-600">{t.mode}</span>
-                      <span className="text-gray-500">{t.percentage}%</span>
+                      <span className="capitalize text-ink-light">{t.mode}</span>
+                      <span className="text-ink-muted">{t.percentage}%</span>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-indigo-500 rounded-full transition-all"
-                        style={{ width: `${t.percentage}%` }}
-                      />
+                    <div className="h-[2px] bg-rule">
+                      <div className="h-full bg-terra" style={{ width: `${t.percentage}%` }} />
                     </div>
                   </div>
                 </div>
@@ -223,34 +184,25 @@ function JourneyStatsPanel({ stats, onClose, activeDay, onDayClick }) {
           </div>
         )}
 
-        {/* Per day */}
         <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
-            By Day
-          </p>
-          <div className="space-y-1.5">
+          <p className="text-[9px] uppercase tracking-[0.14em] text-ink-muted mb-2">By Day</p>
+          <div className="space-y-1">
             {filteredDayStats.map((day) => (
               <button
                 key={day.day}
                 onClick={() => onDayClick(day.day === activeDay ? null : day.day)}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${
-                  day.day === activeDay
-                    ? 'bg-indigo-50 border border-indigo-100'
-                    : 'bg-gray-50 hover:bg-gray-100'
+                className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors border-l-2 ${
+                  day.day === activeDay ? 'bg-cream-dark border-terra' : 'border-transparent hover:bg-cream-dark/50'
                 }`}
               >
-                <span className="text-xs font-bold text-gray-500 w-8">D{day.day}</span>
+                <span className="text-xs font-medium text-ink-muted w-6">D{day.day}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-700 truncate">
-                    {day.activityCount} activities{day.mealCount > 0 ? `, ${day.mealCount} meals` : ''}
-                  </p>
+                  <p className="text-xs text-ink">{day.activityCount} activities{day.mealCount > 0 ? `, ${day.mealCount} meals` : ''}</p>
                   {day.distance > 0 && (
-                    <p className="text-[10px] text-gray-400">
-                      {formatDistance(day.distance)} • {day.durationText} travel
-                    </p>
+                    <p className="text-[10px] text-ink-muted">{formatDistance(day.distance)} • {day.durationText}</p>
                   )}
                 </div>
-                <ChevronRight size={12} className="text-gray-400 shrink-0" />
+                <ChevronRight size={11} className="text-ink-muted shrink-0" />
               </button>
             ))}
           </div>
@@ -382,12 +334,12 @@ const TripMap = ({ itinerary }) => {
         addWaypoints: false,
         draggableWaypoints: false,
         fitSelectedRoutes: false,
-        lineOptions: {
-          styles: [
-            { color: 'white', weight: 7, opacity: 0.6 },
-            { color: routeColor, weight: 4, opacity: 0.9 }
-          ]
-        },
+          lineOptions: {
+            styles: [
+              { color: '#F5F0E8', weight: 6, opacity: 0.8 },
+              { color: routeColor, weight: 3, opacity: 0.9 }
+            ]
+          },
         createMarker: () => null // We render our own markers
       }).addTo(map);
     } catch (error) {
@@ -398,10 +350,10 @@ const TripMap = ({ itinerary }) => {
   // Empty state
   if (!itinerary || allPoints.length === 0) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-gray-50 rounded-2xl">
+      <div className="h-full w-full flex items-center justify-center bg-cream-dark">
         <div className="text-center p-6">
-          <MapPin size={32} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500 text-sm">Generate an itinerary to see the map</p>
+          <MapPin size={32} className="mx-auto text-ink-muted mb-3" strokeWidth={1.5} />
+          <p className="text-ink-light text-sm">Generate an itinerary to see the map</p>
         </div>
       </div>
     );
@@ -417,13 +369,13 @@ const TripMap = ({ itinerary }) => {
   return (
     <div className="relative h-full w-full">
       {/* Day filter */}
-      <div className="absolute top-3 left-3 right-16 z-[400] flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="absolute top-3 left-3 right-16 z-[400] flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
         <button
           onClick={() => setActiveDay(null)}
-          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+          className={`shrink-0 px-3 py-1.5 text-xs font-medium border transition-colors ${
             activeDay === null
-              ? 'bg-gray-800 text-white border-gray-800 shadow-md'
-              : 'bg-white/90 text-gray-600 border-gray-200 hover:bg-white'
+              ? 'bg-ink text-cream border-ink'
+              : 'bg-cream text-ink-light border-rule hover:border-ink'
           }`}
         >
           All Days
@@ -432,16 +384,16 @@ const TripMap = ({ itinerary }) => {
           <button
             key={day}
             onClick={() => setActiveDay(activeDay === day ? null : day)}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+            className={`shrink-0 px-3 py-1.5 text-xs font-medium border transition-colors ${
               activeDay === day
-                ? 'text-white shadow-md'
-                : 'bg-white/90 text-gray-600 border-gray-200 hover:bg-white'
+                ? 'text-cream'
+                : 'bg-cream text-ink-light border-rule hover:border-ink'
             }`}
             style={
               activeDay === day
                 ? {
-                    backgroundColor: allPoints.find((p) => p.dayNumber === day)?.dayColor || '#6366F1',
-                    borderColor: allPoints.find((p) => p.dayNumber === day)?.dayColor || '#6366F1'
+                    backgroundColor: allPoints.find((p) => p.dayNumber === day)?.dayColor || '#C9593A',
+                    borderColor: allPoints.find((p) => p.dayNumber === day)?.dayColor || '#C9593A'
                   }
                 : {}
             }
@@ -450,19 +402,6 @@ const TripMap = ({ itinerary }) => {
           </button>
         ))}
       </div>
-
-      {/* Stats toggle */}
-      <button
-        onClick={() => setShowStats((s) => !s)}
-        className={`absolute top-3 right-3 z-[400] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-sm transition-all ${
-          showStats
-            ? 'bg-gray-800 text-white border-gray-800'
-            : 'bg-white/90 text-gray-600 border-gray-200 hover:bg-white'
-        }`}
-      >
-        <BarChart3 size={13} />
-        Stats
-      </button>
 
       {/* Stats panel */}
       {showStats && (
@@ -481,8 +420,8 @@ const TripMap = ({ itinerary }) => {
         ref={setMap}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
         {visiblePoints.map((point) => {
           const prevLeg = toMap.get(point.name);
@@ -492,7 +431,7 @@ const TripMap = ({ itinerary }) => {
             <Marker
               key={`${point.dayNumber}-${point.sequenceIndex}-${point.name}`}
               position={[point.coordinates.lat, point.coordinates.lng]}
-              icon={createCustomIcon(point.dayNumber, activeDay === point.dayNumber || activeDay === null)}
+              icon={createCustomIcon(point.dayNumber)}
             >
               <Popup maxWidth={300}>
                 <MarkerPopup
