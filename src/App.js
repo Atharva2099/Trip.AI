@@ -1,7 +1,8 @@
 // src/App.js
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit3, Compass, X, LogIn, LogOut, User, MapPin, Bookmark } from 'lucide-react';
+import { Plus, Edit3, Compass, X, LogOut, User, MapPin, Bookmark } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import LandingPage from './components/LandingPage';
 import TripForm from './components/TripForm';
 import TripMap from './components/TripMap';
 import ItineraryDisplay from './components/ItineraryDisplay';
@@ -12,7 +13,7 @@ import { tripsApi } from './api/client';
 import './App.css';
 
 function AuthNav() {
-  const { user, isAuthenticated, loginWithGitHub, loginWithGoogle, logout } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
 
   if (isAuthenticated && user) {
@@ -44,24 +45,7 @@ function AuthNav() {
     );
   }
 
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={loginWithGitHub}
-        className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium uppercase tracking-[0.14em] text-cream/80 hover:text-cream border border-cream/20 hover:border-cream/40 transition-colors"
-      >
-        <LogIn size={12} />
-        GitHub
-      </button>
-      <button
-        onClick={loginWithGoogle}
-        className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium uppercase tracking-[0.14em] text-cream/80 hover:text-cream border border-cream/20 hover:border-cream/40 transition-colors"
-      >
-        <LogIn size={12} />
-        Google
-      </button>
-    </div>
-  );
+  return null;
 }
 
 function AppContent() {
@@ -71,7 +55,7 @@ function AppContent() {
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState(null);
   const [showForm, setShowForm] = useState(true);
-  const [view, setView] = useState('home'); // 'home' | 'my-trips' | 'bookmarks'
+  const [view, setView] = useState('plan'); // 'plan' | 'my-trips' | 'bookmarks'
 
   const { isAuthenticated } = useAuth();
   const hasItinerary = !!itinerary;
@@ -84,9 +68,7 @@ function AppContent() {
       const result = await generateItinerary(formData);
       setItinerary(result.itinerary);
       setShowForm(false);
-      setView('home');
 
-      // Auto-save to cloud if authenticated
       if (isAuthenticated) {
         try {
           await tripsApi.create({
@@ -119,7 +101,7 @@ function AppContent() {
     setItinerary(null);
     setError(null);
     setShowForm(true);
-    setView('home');
+    setView('plan');
   };
 
   const handleLoadTrip = (trip) => {
@@ -133,18 +115,15 @@ function AppContent() {
     });
     setItinerary(trip.itinerary_data);
     setShowForm(false);
-    setView('home');
+    setView('plan');
   };
 
-  // Close dropdowns on click outside
-  useEffect(() => {
-    function handleClick() {
-      // any global click handlers
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
+  // ─── Landing Page for Guests ────────────────────────────────
+  if (!isAuthenticated) {
+    return <LandingPage />;
+  }
 
+  // ─── Authenticated App ──────────────────────────────────────
   return (
     <div className="min-h-screen bg-cream text-ink antialiased font-sans">
       {/* Nav bar */}
@@ -155,32 +134,38 @@ function AppContent() {
               <Compass size={20} className="text-cream" strokeWidth={1.5} />
               <span className="font-serif text-xl text-cream tracking-tight">Trip.AI</span>
             </button>
-            {isAuthenticated && (
-              <div className="hidden sm:flex items-center gap-1">
-                <button
-                  onClick={() => setView('my-trips')}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs uppercase tracking-[0.14em] transition-colors ${
-                    view === 'my-trips' ? 'text-cream' : 'text-cream/50 hover:text-cream/80'
-                  }`}
-                >
-                  <MapPin size={12} strokeWidth={1.5} />
-                  My Trips
-                </button>
-                <button
-                  onClick={() => setView('bookmarks')}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs uppercase tracking-[0.14em] transition-colors ${
-                    view === 'bookmarks' ? 'text-cream' : 'text-cream/50 hover:text-cream/80'
-                  }`}
-                >
-                  <Bookmark size={12} strokeWidth={1.5} />
-                  Saved
-                </button>
-              </div>
-            )}
+            <div className="hidden sm:flex items-center gap-1">
+              <button
+                onClick={() => setView('plan')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs uppercase tracking-[0.14em] transition-colors ${
+                  view === 'plan' ? 'text-cream' : 'text-cream/50 hover:text-cream/80'
+                }`}
+              >
+                Plan
+              </button>
+              <button
+                onClick={() => setView('my-trips')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs uppercase tracking-[0.14em] transition-colors ${
+                  view === 'my-trips' ? 'text-cream' : 'text-cream/50 hover:text-cream/80'
+                }`}
+              >
+                <MapPin size={12} strokeWidth={1.5} />
+                My Trips
+              </button>
+              <button
+                onClick={() => setView('bookmarks')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs uppercase tracking-[0.14em] transition-colors ${
+                  view === 'bookmarks' ? 'text-cream' : 'text-cream/50 hover:text-cream/80'
+                }`}
+              >
+                <Bookmark size={12} strokeWidth={1.5} />
+                Saved
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
-            {hasItinerary && view === 'home' && (
+            {hasItinerary && view === 'plan' && (
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setShowForm((s) => !s)}
@@ -225,10 +210,9 @@ function AppContent() {
           </div>
         )}
 
-        {/* Home view */}
-        {view === 'home' && (
+        {/* Plan view */}
+        {view === 'plan' && (
           <>
-            {/* Form area — full width on desktop */}
             {showForm && !hasItinerary && (
               <div className="mt-16 px-4 md:px-8 lg:px-12">
                 <div className="mb-12">
@@ -246,7 +230,6 @@ function AppContent() {
               </div>
             )}
 
-            {/* Loading */}
             {loading && (
               <div className="mt-16 max-w-lg mx-auto text-center">
                 <div className="border-t-2 border-terra w-12 mx-auto mb-6 animate-pulse" />
@@ -255,10 +238,8 @@ function AppContent() {
               </div>
             )}
 
-            {/* Results */}
             {hasItinerary && (
               <div className="mt-12 grid grid-cols-1 xl:grid-cols-12 gap-0">
-                {/* Form — inline when editing */}
                 {showForm && (
                   <div className="xl:col-span-3 xl:border-r border-rule">
                     <div className="p-6">
@@ -272,16 +253,14 @@ function AppContent() {
                   </div>
                 )}
 
-                {/* Itinerary */}
                 <div className={showForm ? 'xl:col-span-4 xl:border-r border-rule' : 'xl:col-span-5 xl:border-r border-rule'}>
-              <ItineraryDisplay
-                itinerary={itinerary}
-                tripData={tripData}
-                onItineraryUpdate={handleItineraryUpdate}
-              />
+                  <ItineraryDisplay
+                    itinerary={itinerary}
+                    tripData={tripData}
+                    onItineraryUpdate={handleItineraryUpdate}
+                  />
                 </div>
 
-                {/* Map */}
                 <div className={showForm ? 'xl:col-span-5' : 'xl:col-span-7'}>
                   <div className="h-[500px] lg:h-[85vh] bg-cream-dark border-b border-rule xl:border-b-0 sticky top-[57px]">
                     <TripMap itinerary={itinerary} />

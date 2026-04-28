@@ -549,12 +549,12 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
             </div>
           </div>
 
-          {/* Submit — full width */}
-          <div className="md:col-span-2">
+          {/* Submit */}
+          <div className="md:col-span-2 flex justify-center">
             <button
               type="submit"
               disabled={disabled}
-              className={`w-full py-4 text-xs font-medium uppercase tracking-[0.14em] transition-colors ${
+              className={`px-12 py-3 text-xs font-medium uppercase tracking-[0.14em] transition-colors ${
                 disabled
                   ? 'bg-cream-dark text-ink-muted border border-rule cursor-not-allowed'
                   : 'bg-terra text-cream hover:bg-terra-dark'
