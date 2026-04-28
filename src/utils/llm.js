@@ -1,6 +1,6 @@
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
 
-const FALLBACK_MODEL = 'qwen/qwen3.6-max-preview';
+const FALLBACK_MODEL = 'deepseek/deepseek-v4-flash';
 
 const getOpenRouterErrorMessage = (status, errorData) => {
   switch (status) {
@@ -20,7 +20,7 @@ const getOpenRouterErrorMessage = (status, errorData) => {
   }
 };
 
-const makeOpenRouterRequest = async (messages, temperature = 0.3, apiKey, model, useFallback = true) => {
+const makeOpenRouterRequest = async (messages, temperature = 0.3, apiKey, model, useFallback = true, maxTokens = 3500) => {
   if (!apiKey) {
     throw new Error('Please provide a valid OpenRouter API key');
   }
@@ -44,7 +44,7 @@ const makeOpenRouterRequest = async (messages, temperature = 0.3, apiKey, model,
         model: model || FALLBACK_MODEL,
         messages: messages,
         temperature: temperature,
-        max_tokens: 4000,
+        max_tokens: maxTokens,
         top_p: 1,
         include_reasoning: false,
         response_format: { type: "json_object" }
@@ -154,6 +154,10 @@ export const generateItinerary = async (tripData) => {
       throw new Error('Budget too low: Minimum $50 per person per day required');
     }
 
+    // Dynamic max_tokens based on trip length to reduce latency
+    const dayCount = formattedDates.length;
+    const maxTokens = dayCount <= 3 ? 1500 : dayCount <= 7 ? 2500 : 3500;
+
     const template = {
       days: [{
         date: formattedDates[0],
@@ -163,59 +167,40 @@ export const generateItinerary = async (tripData) => {
           description: "Activity description",
           cost: 50,
           coordinates: { lat: 0, lng: 0 },
-          transport: {
-            method: "taxi",
-            duration: "20 min",
-            cost: 10
-          }
+          transport: { method: "taxi", duration: "20 min", cost: 10 }
         }],
         meals: [{
-          type: "breakfast",
-          time: "08:00",
-          name: "Sample Restaurant",
-          description: "Restaurant description",
-          cost: 20
+          type: "breakfast", time: "08:00", name: "Sample Restaurant",
+          description: "Restaurant description", cost: 20
         }],
         dailyTotal: 80
       }]
     };
 
-    const systemPrompt = `As a travel planning assistant, generate a detailed itinerary in JSON format. Follow this EXACT structure (replace sample values):
+    const systemPrompt = `Generate a ${dayCount}-day travel itinerary for ${restTripData.destination} in valid JSON matching this structure:
 ${JSON.stringify(template, null, 2)}
 
-Critical geographic requirements:
-1. Each day's activities MUST be clustered within a small area (walking or 5-10 min drive apart). Never spread a single day's activities across a large region.
-2. Different days should explore DIFFERENT neighborhoods or areas of ${restTripData.destination}. Do not repeat the same area on multiple days.
-3. Transport between consecutive activities in a single day should be short (walk, taxi, or local transit under 15 min). No long scenic drives within one day.
-4. If the destination has distinct regions (north/south/east/west/downtown), assign each region to a different day.
-5. All locations must be real and verifiable with exact coordinates.
-6. All costs must be realistic for ${restTripData.destination}.
-7. Activities must be between 8:00-22:00.
-8. No duplicate activities or restaurants across the entire trip.`;
+Rules:
+- 2-3 activities + 3 meals per day
+- Same-day activities must be in the same neighborhood (walking/short drive)
+- Different days explore different areas of ${restTripData.destination}
+- Transport between activities: walk/taxi/local transit under 15 min
+- All locations real with exact coordinates
+- Realistic costs for ${restTripData.destination}
+- Activities between 8:00-22:00
+- No duplicate places anywhere in the trip`;
 
-    const userPrompt = `Create a ${formattedDates.length}-day itinerary for ${restTripData.destination}:
-- Budget per person: $${budgetPerPerson}
-- Dates: ${formattedDates.join(', ')}
-- Number of people: ${restTripData.numPeople}
-- Interests: ${restTripData.interests || 'general sightseeing'}
+    const userPrompt = `Budget: $${budgetPerPerson}/person/day for ${restTripData.numPeople} people
+Dates: ${formattedDates.join(', ')}
+Interests: ${restTripData.interests || 'general sightseeing'}
 
-Requirements:
-1. Each day needs 2-3 activities and 3 meals (breakfast, lunch, dinner)
-2. Activities within a single day must be close together (same neighborhood or district). Do NOT have one day span the entire destination.
-3. Spread different areas of ${restTripData.destination} across different days. For example, if there are north and south areas, put north activities on one day and south on another.
-4. Include exact coordinates for each activity
-5. All activities between 8:00-22:00
-6. Transport between locations should be short (walk, short taxi, or local transit)
-7. Stay within budget
-8. No duplicate activities or restaurants anywhere in the trip
-
-Return ONLY valid JSON matching the template structure exactly.`;
+Generate the itinerary JSON now.`;
 
     console.log('Sending prompts to API');
     const content = await makeOpenRouterRequest([
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt }
-    ], 0.3, apiKey, model);
+    ], 0.4, apiKey, model, true, maxTokens);
 
     console.log('Received content from API:', content);
 

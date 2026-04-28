@@ -39,13 +39,14 @@ const PRESETS = [
 ];
 
 const MODELS = [
+  { value: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash (Fast)' },
+  { value: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro (Quality)' },
   { value: 'qwen/qwen3.6-max-preview', label: 'Qwen 3.6 Max' },
   { value: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
-  { value: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4' },
   { value: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (Free)' }
 ];
 
-const FALLBACK_MODEL = 'qwen/qwen3.6-max-preview';
+const FALLBACK_MODEL = 'deepseek/deepseek-v4-flash';
 const LS_KEY = 'tripai_form_v2';
 
 // ─── Icon mapping for dynamic rendering ──────────────────────

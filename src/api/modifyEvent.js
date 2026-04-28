@@ -1,6 +1,6 @@
 // src/api/modifyEvent.js
 
-const FALLBACK_MODEL = 'qwen/qwen3.6-max-preview';
+const FALLBACK_MODEL = 'deepseek/deepseek-v4-flash';
 
 const getExistingEvents = (event, currentItinerary) => {
   const existingEvents = new Set();
