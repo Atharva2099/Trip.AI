@@ -75,16 +75,39 @@ async function authMiddleware(c, next) {
 
 // ─── GitHub OAuth ────────────────────────────────────────────
 
+function encodeState(randomId, origin) {
+  return encodeURIComponent(btoa(JSON.stringify({ s: randomId, o: origin })));
+}
+
+function decodeState(state) {
+  try {
+    const { s, o } = JSON.parse(atob(decodeURIComponent(state)));
+    if (ALLOWED_ORIGINS.some(allowed => o && o.startsWith(allowed))) return { s, o };
+    return { s, o: null };
+  } catch {
+    return { s: state, o: null };
+  }
+}
+
+function appRedirect(appOrigin, path, defaultOrigin) {
+  const origin = appOrigin || defaultOrigin;
+  if (origin.includes('localhost')) return `${origin}${path}`;
+  return `${origin}/Trip.AI${path}`;
+}
+
 app.get('/auth/github', async (c) => {
   try {
-    const state = generateId();
+    const randomId = generateId();
     const clientId = c.env.GITHUB_CLIENT_ID;
     if (!clientId) {
       return c.json({ error: 'GITHUB_CLIENT_ID not configured' }, 500);
     }
+    const origin = c.req.query('origin') || '';
+    const allowed = ALLOWED_ORIGINS.some(o => origin.startsWith(o));
+    const appOrigin = allowed ? origin : c.env.APP_URL;
+    const state = encodeState(randomId, appOrigin);
     const redirectUri = `${new URL(c.req.url).origin}/auth/github/callback`;
     const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email&state=${state}`;
-    c.header('Set-Cookie', `oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`);
     return c.redirect(url);
   } catch (err) {
     return c.json({ error: err.message, stack: err.stack }, 500);
@@ -93,11 +116,11 @@ app.get('/auth/github', async (c) => {
 
 app.get('/auth/github/callback', async (c) => {
   const code = c.req.query('code');
-  const state = c.req.query('state');
-  const cookieState = c.req.header('cookie')?.match(/oauth_state=([^;]+)/)?.[1];
+  const stateParam = c.req.query('state');
+  const { s: state, o: appOrigin } = decodeState(stateParam);
 
-  if (!code || state !== cookieState) {
-    return c.redirect(`${c.env.APP_URL}/?error=auth_failed`);
+  if (!code) {
+    return c.redirect(appRedirect(appOrigin, '/?error=auth_failed', c.env.APP_URL));
   }
 
   // Exchange code for token
@@ -113,7 +136,7 @@ app.get('/auth/github/callback', async (c) => {
   });
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token) {
-    return c.redirect(`${c.env.APP_URL}/?error=auth_failed`);
+    return c.redirect(appRedirect(appOrigin, '/?error=auth_failed', c.env.APP_URL));
   }
 
   // Get user info
@@ -147,21 +170,24 @@ app.get('/auth/github/callback', async (c) => {
 
   const jwt = await signJWT({ sub: userId, email: primaryEmail, name: githubUser.name || githubUser.login, exp: expiresAt }, c.env.JWT_SECRET);
 
-  return c.redirect(`${c.env.APP_URL}/?token=${jwt}`);
+  return c.redirect(appRedirect(appOrigin, `/?token=${jwt}`, c.env.APP_URL));
 });
 
 // ─── Google OAuth ────────────────────────────────────────────
 
 app.get('/auth/google', async (c) => {
   try {
-    const state = generateId();
+    const randomId = generateId();
     const clientId = c.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
       return c.json({ error: 'GOOGLE_CLIENT_ID not configured' }, 500);
     }
+    const origin = c.req.query('origin') || '';
+    const allowed = ALLOWED_ORIGINS.some(o => origin.startsWith(o));
+    const appOrigin = allowed ? origin : c.env.APP_URL;
+    const state = encodeState(randomId, appOrigin);
     const redirectUri = `${new URL(c.req.url).origin}/auth/google/callback`;
     const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20email%20profile&state=${state}&access_type=offline`;
-    c.header('Set-Cookie', `oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`);
     return c.redirect(url);
   } catch (err) {
     return c.json({ error: err.message, stack: err.stack }, 500);
@@ -170,11 +196,11 @@ app.get('/auth/google', async (c) => {
 
 app.get('/auth/google/callback', async (c) => {
   const code = c.req.query('code');
-  const state = c.req.query('state');
-  const cookieState = c.req.header('cookie')?.match(/oauth_state=([^;]+)/)?.[1];
+  const stateParam = c.req.query('state');
+  const { s: state, o: appOrigin } = decodeState(stateParam);
 
-  if (!code || state !== cookieState) {
-    return c.redirect(`${c.env.APP_URL}/?error=auth_failed`);
+  if (!code) {
+    return c.redirect(appRedirect(appOrigin, '/?error=auth_failed', c.env.APP_URL));
   }
 
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -190,7 +216,7 @@ app.get('/auth/google/callback', async (c) => {
   });
   const tokenData = await tokenRes.json();
   if (!tokenData.access_token) {
-    return c.redirect(`${c.env.APP_URL}/?error=auth_failed`);
+    return c.redirect(appRedirect(appOrigin, '/?error=auth_failed', c.env.APP_URL));
   }
 
   const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -214,7 +240,7 @@ app.get('/auth/google/callback', async (c) => {
 
   const jwt = await signJWT({ sub: userId, email: googleUser.email, name: googleUser.name, exp: expiresAt }, c.env.JWT_SECRET);
 
-  return c.redirect(`${c.env.APP_URL}/?token=${jwt}`);
+  return c.redirect(appRedirect(appOrigin, `/?token=${jwt}`, c.env.APP_URL));
 });
 
 // ─── Auth Status ─────────────────────────────────────────────
@@ -451,6 +477,111 @@ app.post('/api/generate', async (c) => {
       return c.json({ error: 'Request timed out after 5 minutes' }, 504);
     }
     return c.json({ error: error.message }, 500);
+  }
+});
+
+// ─── Modify Event ────────────────────────────────────────────
+
+app.post('/api/modify-event', async (c) => {
+  const body = await c.req.json();
+  const { message, context, currentItinerary } = body;
+
+  const apiKey = c.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    return c.json({ error: 'Server configuration error: no API key configured' }, 500);
+  }
+
+  const existingEvents = new Set();
+  currentItinerary.days.forEach(day => {
+    (day.activities || []).forEach(a => existingEvents.add(a.name.toLowerCase()));
+    (day.meals || []).forEach(m => existingEvents.add(m.name.toLowerCase()));
+  });
+
+  const systemPrompt = `You are a travel planning assistant. Your task is to modify a ${context.type} based on the user's request.
+Important constraints:
+1. NEVER suggest any of these existing places: ${Array.from(existingEvents).join(', ')}
+2. Keep all locations within 50km of city center
+3. Activities must be between 8:00-22:00
+4. Use realistic local prices
+5. For activities, always include exact coordinates, transport info, and distance
+6. For meals, include time, type (breakfast/lunch/dinner), and cost
+7. Suggest unique places that aren't already in the itinerary
+8. Ensure suggestions are location-appropriate and culturally relevant
+
+The response must be a valid JSON object with the same structure as the current details.`;
+
+  const userPrompt = `Current ${context.type} details:
+${JSON.stringify(context.currentDetails, null, 2)}
+
+User request: ${message}
+
+Respond with a JSON object containing the modified event details. Maintain the exact structure of the current details while incorporating the requested changes.`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': c.env.APP_URL || 'https://atharva2099.github.io/Trip.AI',
+        'X-Title': 'Trip.AI'
+      },
+      body: JSON.stringify({
+        model: 'deepseek/deepseek-v4-flash',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.4,
+        max_tokens: 1000,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return c.json({ error: errorData.error?.message || `OpenRouter error: ${response.status}` }, response.status);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      return c.json({ error: 'No content in response' }, 500);
+    }
+
+    const updatedEvent = JSON.parse(content);
+    return c.json({ updatedEvent, message: 'Event modified successfully' });
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      return c.json({ error: 'Request timed out after 30 seconds' }, 504);
+    }
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+// ─── OSRM Route Proxy ────────────────────────────────────────
+
+app.get('/api/route/*', async (c) => {
+  const path = c.req.path.replace('/api/route', '');
+  const query = c.req.query();
+  const queryString = Object.keys(query).length > 0
+    ? '?' + new URLSearchParams(query).toString()
+    : '';
+  const osrmUrl = `https://router.project-osrm.org${path}${queryString}`;
+
+  try {
+    const response = await fetch(osrmUrl);
+    const data = await response.json();
+    return c.json(data);
+  } catch (error) {
+    return c.json({ error: 'Routing service unavailable', message: error.message }, 502);
   }
 });
 

@@ -134,10 +134,19 @@ export const generateItinerary = async (tripData) => {
     };
 
     const dayCount = formattedDates.length;
+    const groupBudget = parseInt(tripData.budget);
     const systemPrompt = `Generate a ${dayCount}-day travel itinerary for ${tripData.destination} in valid JSON matching this structure:
 ${JSON.stringify(template, null, 2)}
 
-Rules:
+CRITICAL BUDGET RULES — these override all other instructions:
+- TOTAL GROUP BUDGET CEILING: $${groupBudget} for ALL ${tripData.numPeople} people combined across ALL ${dayCount} days
+- This means total cost per person must stay under $${Math.floor(groupBudget / tripData.numPeople)}
+- If you cannot fit realistic activities within budget, CUT activities (2 per day minimum) or choose cheaper options
+- NEVER exceed the total budget — underspending is acceptable, overspending is not
+- Accommodation is NOT included in this budget (user books separately)
+- Costs to include: activities entry fees, meals, local transport between activities
+
+Other Rules:
 - 2-3 activities + 3 meals per day
 - Same-day activities must be in the same neighborhood (walking/short drive)
 - Different days explore different areas of ${tripData.destination}
@@ -147,11 +156,11 @@ Rules:
 - Activities between 8:00-22:00
 - No duplicate places anywhere in the trip`;
 
-    const userPrompt = `Budget: $${budgetPerPerson}/person/day for ${tripData.numPeople} people
+    const userPrompt = `Group budget: $${groupBudget} total for ${tripData.numPeople} people over ${dayCount} days (about $${budgetPerPerson}/person/day MAX)
 Dates: ${formattedDates.join(', ')}
 Interests: ${tripData.interests || 'general sightseeing'}
 
-Generate the itinerary JSON now.`;
+Generate the itinerary JSON now. Stay UNDER the total budget.`;
 
     const content = await makeLLMRequest([
       { role: "system", content: systemPrompt },
@@ -168,8 +177,45 @@ Generate the itinerary JSON now.`;
       throw new Error('Invalid response format: No JSON object found');
     }
 
-    const parsedContent = JSON.parse(jsonMatch[0]);
-    const validatedItinerary = validateAndAdjustCosts(parsedContent, tripData.numPeople);
+    let parsedContent = JSON.parse(jsonMatch[0]);
+    let validatedItinerary = validateAndAdjustCosts(parsedContent, tripData.numPeople);
+
+    // Budget enforcement: if over budget, ask LLM to trim
+    if (validatedItinerary.groupTotal > groupBudget) {
+      const overBy = validatedItinerary.groupTotal - groupBudget;
+      const trimPrompt = `This itinerary is $${overBy} OVER the $${groupBudget} group budget.
+
+Current itinerary:
+${JSON.stringify(validatedItinerary.days.map(d => ({
+  date: d.date,
+  activities: d.activities.map(a => ({ name: a.name, cost: a.cost })),
+  meals: d.meals.map(m => ({ name: m.name, cost: m.cost }))
+})), null, 2)}
+
+Trim this to stay UNDER $${groupBudget} total by:
+1. Replacing expensive activities with cheaper or free alternatives
+2. Replacing expensive meals with cheaper local spots
+3. Reducing transport costs
+4. If needed, remove 1 activity from the most expensive day
+
+Keep the SAME structure. Return the trimmed JSON.`;
+
+      const trimContent = await makeLLMRequest([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: trimPrompt }
+      ], 0.3, 6000);
+
+      const cleanTrimContent = trimContent
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      const trimJsonMatch = cleanTrimContent.match(/\{[\s\S]*\}/);
+      if (trimJsonMatch) {
+        parsedContent = JSON.parse(trimJsonMatch[0]);
+        validatedItinerary = validateAndAdjustCosts(parsedContent, tripData.numPeople);
+      }
+    }
 
     const locations = validatedItinerary.days.flatMap(day => 
       day.activities.map(activity => ({

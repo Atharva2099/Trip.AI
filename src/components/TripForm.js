@@ -253,6 +253,19 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
   const handleDateSelect = (range) => {
     if (!range) return;
     const currentForm = formRef.current;
+    const hadCompleteRange = currentForm.dateRange.from && currentForm.dateRange.to;
+
+    if (hadCompleteRange && range.from && range.to) {
+      const oldFrom = new Date(currentForm.dateRange.from).getTime();
+      const newFrom = range.from.getTime();
+      if (newFrom === oldFrom) {
+        setForm((f) => ({ ...f, dateRange: { from: range.to.toISOString(), to: null } }));
+      } else {
+        setForm((f) => ({ ...f, dateRange: { from: range.from.toISOString(), to: null } }));
+      }
+      return;
+    }
+
     setForm((f) => ({ ...f, dateRange: { from: range.from || null, to: range.to || null } }));
     if (range.from && range.to) {
       setShowCalendar(false);

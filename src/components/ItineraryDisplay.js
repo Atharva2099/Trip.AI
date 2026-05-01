@@ -3,11 +3,12 @@ import React, { useState, useMemo } from 'react';
 import {
   ChevronDown, ChevronUp, UtensilsCrossed, MapPin,
   DollarSign, CalendarDays, Clock, Navigation, Info,
-  AlertTriangle
+  AlertTriangle, ExternalLink
 } from 'lucide-react';
 import { BookmarkButton } from './BookmarksPage';
 import BudgetTracker from './BudgetTracker';
 import EventChat from './EventChat';
+import { getActivityLinks, getMealLinks, getAccommodationLinks } from '../utils/booking';
 
 const dayColors = [
   '#C9593A', '#6B5C4A', '#1A1208', '#B0A090',
@@ -82,26 +83,19 @@ function ActivityCard({ activity, dayIndex, onClick, destination }) {
         )}
       </div>
       <div className="flex flex-wrap gap-2 mt-2">
-        <a
-          href={`https://www.google.com/maps/dir/?api=1&destination=${activity.coordinates.lat},${activity.coordinates.lng}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors"
-          onClick={e => e.stopPropagation()}
-        >
-          <Navigation size={10} />
-          Directions
-        </a>
-        <a
-          href={`https://www.google.com/search?q=${encodeURIComponent(activity.name)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors"
-          onClick={e => e.stopPropagation()}
-        >
-          <Info size={10} />
-          More Info
-        </a>
+        {getActivityLinks(activity, destination).map(link => (
+          <a
+            key={link.label}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors"
+            onClick={e => e.stopPropagation()}
+          >
+            <ExternalLink size={9} />
+            {link.label}
+          </a>
+        ))}
       </div>
     </div>
   );
@@ -127,11 +121,26 @@ function MealCard({ meal, onClick, destination }) {
       </div>
       <div className="text-sm text-ink mt-0.5">{meal.name}</div>
       <div className="text-xs text-ink-light line-clamp-1">{meal.description}</div>
+      <div className="flex flex-wrap gap-2 mt-1.5">
+        {getMealLinks(meal, destination).map(link => (
+          <a
+            key={link.label}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors"
+            onClick={e => e.stopPropagation()}
+          >
+            <ExternalLink size={9} />
+            {link.label}
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
 
-function AccommodationOptions({ options, destination }) {
+function AccommodationOptions({ options, destination, checkin, checkout }) {
   if (!options || options.length === 0) return null;
   return (
     <div className="mt-6 pt-6 border-t border-rule">
@@ -143,6 +152,20 @@ function AccommodationOptions({ options, destination }) {
               <div>
                 <div className="text-sm text-ink">{opt.name}</div>
                 <div className="text-xs text-ink-light">{opt.description}</div>
+                <div className="flex flex-wrap gap-2 mt-1.5">
+                  {getAccommodationLinks(opt, destination, checkin, checkout).map(link => (
+                    <a
+                      key={link.label}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors"
+                    >
+                      <ExternalLink size={9} />
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
               </div>
               <div className="text-right shrink-0">
                 <div className="flex items-center gap-2">
@@ -340,7 +363,7 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
                   </div>
 
                   {/* Accommodation */}
-                  {day.accommodation_options && <AccommodationOptions options={day.accommodation_options} destination={tripData?.destination} />}
+                  {day.accommodation_options && <AccommodationOptions options={day.accommodation_options} destination={tripData?.destination} checkin={tripData?.dates?.start} checkout={tripData?.dates?.end} />}
 
                   {/* Daily total */}
                   <div className="flex justify-end pt-4 mt-4 border-t border-rule">
@@ -401,8 +424,6 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
           event={selectedEvent}
           isActivity={isActivity}
           currentItinerary={itinerary}
-          apiKey={apiKey}
-          model={model}
           onClose={() => { setIsEventChatOpen(false); setSelectedEvent(null); }}
           onEventUpdate={handleEventUpdate}
         />

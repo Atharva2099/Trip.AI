@@ -47,12 +47,14 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('auth:logout', handleLogout);
   }, []);
 
+  const API_BASE = 'https://tripai-api.athuspydy.workers.dev';
+
   const loginWithGitHub = useCallback(() => {
-    window.location.href = 'https://tripai-api.athuspydy.workers.dev/auth/github';
+    window.location.href = `${API_BASE}/auth/github?origin=${encodeURIComponent(window.location.origin)}`;
   }, []);
 
   const loginWithGoogle = useCallback(() => {
-    window.location.href = 'https://tripai-api.athuspydy.workers.dev/auth/google';
+    window.location.href = `${API_BASE}/auth/google?origin=${encodeURIComponent(window.location.origin)}`;
   }, []);
 
   const logout = useCallback(async () => {

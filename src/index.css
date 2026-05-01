@@ -54,6 +54,14 @@
   background: #F5F0E8;
 }
 
+/* Hide leaflet-routing-machine itinerary panel completely */
+.leaflet-routing-container {
+  display: none !important;
+}
+.leaflet-routing-alternatives-container {
+  display: none !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -128,4 +136,21 @@
   background: rgba(245, 240, 232, 0.9) !important;
   border-color: #D8D0C4 !important;
   color: #6B5C4A !important;
+}
+
+/* Ensure popups render above external overlays (day filter at z-400) */
+.leaflet-popup-pane {
+  z-index: 1000 !important;
+}
+.leaflet-marker-pane {
+  z-index: 600 !important;
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

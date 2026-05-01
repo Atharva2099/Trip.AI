@@ -1,178 +1,25 @@
-// src/api/modifyEvent.js
+const API_BASE = 'https://tripai-api.athuspydy.workers.dev';
 
-const FALLBACK_MODEL = 'deepseek/deepseek-v4-flash';
-
-const getExistingEvents = (event, currentItinerary) => {
-  const existingEvents = new Set();
-  currentItinerary.days.forEach(day => {
-    day.activities.forEach(activity => {
-      if (activity.name !== event.name) {
-        existingEvents.add(activity.name.toLowerCase());
-      }
-    });
-    day.meals.forEach(meal => {
-      if (meal.name !== event.name) {
-        existingEvents.add(meal.name.toLowerCase());
-      }
-    });
-  });
-  return existingEvents;
-};
-
-const makeOpenRouterRequest = async (apiKey, body, useFallback = true, fallbackModel = FALLBACK_MODEL) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-
+export const modifyEvent = async (message, context, currentItinerary) => {
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch(`${API_BASE}/api/modify-event`, {
       method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'Trip.AI'
-      },
-      body: JSON.stringify({
-        ...body,
-        include_reasoning: false
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, context, currentItinerary })
     });
-
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-
-      if (response.status === 404 && useFallback && body.model && body.model !== fallbackModel) {
-        console.warn(`Model ${body.model} unavailable. Falling back to ${fallbackModel}`);
-        return makeOpenRouterRequest(apiKey, { ...body, model: fallbackModel }, false);
-      }
-
-      const message = errorData.error?.message || `Failed to get response from API (HTTP ${response.status})`;
-      throw new Error(message);
+      const err = await response.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(err.error || `HTTP ${response.status}`);
     }
 
-    return await response.json();
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      throw new Error('Request timed out after 30 seconds. The model may be overloaded.');
-    }
-    throw error;
-  }
-};
-
-export const modifyEvent = async (message, context, currentItinerary, apiKey, model) => {
-  if (!apiKey) {
-    throw new Error('OpenRouter API key not found. Please add your API key in the trip form.');
-  }
-
-  try {
-    const existingEvents = getExistingEvents(context.currentDetails, currentItinerary);
-
-    const systemPrompt = `You are a travel planning assistant. Your task is to modify a ${context.type} based on the user's request.
-Important constraints:
-1. NEVER suggest any of these existing places: ${Array.from(existingEvents).join(', ')}
-2. Keep all locations within 50km of city center
-3. Activities must be between 8:00-22:00
-4. Use realistic local prices
-5. For activities, always include exact coordinates, transport info, and distance
-6. For meals, include time, type (breakfast/lunch/dinner), and cost
-7. Suggest unique places that aren't already in the itinerary
-8. Ensure suggestions are location-appropriate and culturally relevant
-
-The response must be a valid JSON object with the same structure as the current details.`;
-
-    const userPrompt = `Current ${context.type} details:
-${JSON.stringify(context.currentDetails, null, 2)}
-
-User request: ${message}
-
-Respond with a JSON object containing the modified event details. Maintain the exact structure of the current details while incorporating the requested changes.`;
-
-    const data = await makeOpenRouterRequest(apiKey, {
-      model: model || FALLBACK_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0.4,
-      max_tokens: 1000,
-      response_format: { type: "json_object" }
-    });
-
-    if (!data.choices?.[0]?.message?.content) {
-      throw new Error("No content in response");
-    }
-
-    try {
-      const updatedEvent = JSON.parse(data.choices[0].message.content);
-
-      if (!validateEventStructure(updatedEvent, context.type)) {
-        throw new Error("Invalid event structure returned");
-      }
-
-      if (updatedEvent.name && existingEvents.has(updatedEvent.name.toLowerCase())) {
-        const retryPrompt = `${userPrompt}\n\nIMPORTANT: The suggested place "${updatedEvent.name}" is already in the itinerary. Please suggest a completely different place that's not in this list: ${Array.from(existingEvents).join(', ')}`;
-
-        const retryData = await makeOpenRouterRequest(apiKey, {
-          model: model || FALLBACK_MODEL,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: retryPrompt }
-          ],
-          temperature: 0.5,
-          max_tokens: 1000,
-          response_format: { type: "json_object" }
-        });
-
-        const retryEvent = JSON.parse(retryData.choices[0].message.content);
-
-        if (!validateEventStructure(retryEvent, context.type)) {
-          throw new Error("Invalid event structure in retry");
-        }
-
-        return {
-          message: "I've found a unique alternative that meets your requirements.",
-          updatedEvent: retryEvent
-        };
-      }
-
-      return {
-        message: "I've updated the event based on your request while ensuring it's unique in your itinerary.",
-        updatedEvent
-      };
-
-    } catch (parseError) {
-      console.error("Failed to parse content:", data.choices[0].message.content);
-      throw new Error("Failed to parse the AI response. Please try again.");
-    }
+    const data = await response.json();
+    return {
+      message: data.message,
+      updatedEvent: data.updatedEvent
+    };
   } catch (error) {
     console.error('Error modifying event:', error);
     throw error;
   }
-};
-
-// Helper function to validate event structure
-const validateEventStructure = (event, type) => {
-  const requiredActivityFields = ['name', 'time', 'description', 'cost', 'coordinates', 'transport', 'distance'];
-  const requiredMealFields = ['name', 'time', 'description', 'cost', 'type'];
-
-  const requiredFields = type === 'activity' ? requiredActivityFields : requiredMealFields;
-
-  return requiredFields.every(field => {
-    if (field === 'coordinates' && type === 'activity') {
-      return event.coordinates && 
-             typeof event.coordinates.lat === 'number' && 
-             typeof event.coordinates.lng === 'number';
-    }
-    if (field === 'transport' && type === 'activity') {
-      return event.transport && 
-             event.transport.method && 
-             event.transport.duration && 
-             typeof event.transport.cost === 'number';
-    }
-    return event.hasOwnProperty(field) && event[field] !== null && event[field] !== undefined;
-  });
 };

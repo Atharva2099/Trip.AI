@@ -126,7 +126,7 @@ function JourneyStatsPanel({ stats, onClose, activeDay, onDayClick }) {
     : stats.dayStats;
 
   return (
-    <div className="absolute top-14 right-3 z-[400] w-64 bg-cream border border-rule shadow-xl max-h-[70vh] overflow-y-auto">
+    <div className="absolute top-14 right-3 z-[800] w-64 bg-cream border border-rule shadow-xl max-h-[70vh] overflow-y-auto">
       <div className="flex items-center justify-between px-4 py-3 border-b border-rule">
         <div className="flex items-center gap-2">
           <BarChart3 size={14} className="text-ink-muted" strokeWidth={1.5} />
@@ -218,6 +218,7 @@ const TripMap = ({ itinerary }) => {
   const [map, setMap] = useState(null);
   const [activeDay, setActiveDay] = useState(null); // null = all days
   const [showStats, setShowStats] = useState(false);
+  const [popupOpen, setPopupOpen] = useState(false);
 
   // Compute mappable points with metadata
   const allPoints = useMemo(() => {
@@ -286,6 +287,22 @@ const TripMap = ({ itinerary }) => {
   const stats = useMemo(() => computeJourneyStats(itinerary), [itinerary]);
   const { toMap, fromMap } = useMemo(() => buildLegLookup(stats?.dayStats), [stats]);
 
+  // Listen for popup open/close
+  useEffect(() => {
+    if (!map) return;
+    const handlePopupOpen = () => {
+      setPopupOpen(true);
+      setShowStats(false);
+    };
+    const handlePopupClose = () => setPopupOpen(false);
+    map.on('popupopen', handlePopupOpen);
+    map.on('popupclose', handlePopupClose);
+    return () => {
+      map.off('popupopen', handlePopupOpen);
+      map.off('popupclose', handlePopupClose);
+    };
+  }, [map]);
+
   // Fit bounds when visible points change
   useEffect(() => {
     if (map && visiblePoints.length > 0) {
@@ -296,13 +313,34 @@ const TripMap = ({ itinerary }) => {
     }
   }, [map, visiblePoints]);
 
+  // Draw fallback polylines (visible in all environments)
+  const drawFallbackLines = () => {
+    if (!map || visiblePoints.length < 2) return;
+
+    // Group points by day
+    const pointsByDay = new Map();
+    visiblePoints.forEach((p) => {
+      if (!pointsByDay.has(p.dayNumber)) pointsByDay.set(p.dayNumber, []);
+      pointsByDay.get(p.dayNumber).push(p);
+    });
+
+    pointsByDay.forEach((points) => {
+      if (points.length < 2) return;
+      points.sort((a, b) => a.sequenceIndex - b.sequenceIndex);
+      const latlngs = points.map((p) => [p.coordinates.lat, p.coordinates.lng]);
+      const color = points[0]?.dayColor || '#6366F1';
+
+      L.polyline(latlngs, { color: '#F5F0E8', weight: 6, opacity: 0.8, interactive: false }).addTo(map);
+      L.polyline(latlngs, { color, weight: 3, opacity: 0.9, interactive: false }).addTo(map);
+    });
+  };
+
   // Routing control — draw route for visible points
   useEffect(() => {
     if (!map || visiblePoints.length < 2) {
-      // Remove existing routing controls if not enough points
       if (map) {
         map.eachLayer((layer) => {
-          if (layer instanceof L.Routing.Control) {
+          if (layer instanceof L.Routing.Control || (layer instanceof L.Polyline && !(layer instanceof L.Rectangle))) {
             map.removeLayer(layer);
           }
         });
@@ -310,41 +348,54 @@ const TripMap = ({ itinerary }) => {
       return;
     }
 
-    // Remove old routing controls
+    // Remove old routing controls and polylines
     map.eachLayer((layer) => {
-      if (layer instanceof L.Routing.Control) {
+      if (layer instanceof L.Routing.Control || (layer instanceof L.Polyline && !(layer instanceof L.Rectangle))) {
         map.removeLayer(layer);
       }
     });
 
-    try {
-      const waypoints = visiblePoints.map((p) =>
-        L.latLng(p.coordinates.lat, p.coordinates.lng)
-      );
+    const waypoints = visiblePoints.map((p) =>
+      L.latLng(p.coordinates.lat, p.coordinates.lng)
+    );
 
-      // Use a different color for each day when viewing single day
-      const routeColor = activeDay !== null
-        ? visiblePoints[0]?.dayColor || '#6366F1'
-        : '#6366F1';
+    const routeColor = activeDay !== null
+      ? visiblePoints[0]?.dayColor || '#6366F1'
+      : '#6366F1';
 
-      L.Routing.control({
-        waypoints,
-        routeWhileDragging: false,
-        show: false,
-        addWaypoints: false,
-        draggableWaypoints: false,
-        fitSelectedRoutes: false,
-          lineOptions: {
-            styles: [
-              { color: '#F5F0E8', weight: 6, opacity: 0.8 },
-              { color: routeColor, weight: 3, opacity: 0.9 }
-            ]
-          },
-        createMarker: () => null // We render our own markers
-      }).addTo(map);
-    } catch (error) {
-      console.error('Error setting up route:', error);
-    }
+    const control = L.Routing.control({
+      waypoints,
+      routeWhileDragging: false,
+      show: false,
+      addWaypoints: false,
+      draggableWaypoints: false,
+      fitSelectedRoutes: false,
+      lineOptions: {
+        styles: [
+          { color: '#F5F0E8', weight: 6, opacity: 0.8 },
+          { color: routeColor, weight: 3, opacity: 0.9 }
+        ]
+      },
+      createMarker: () => null
+    });
+
+    // If routing fails (CORS on localhost), draw straight lines instead
+    control.on('routingerror', () => {
+      drawFallbackLines();
+    });
+
+    control.addTo(map);
+
+    // Also draw fallback after a timeout in case routing silently fails
+    const timeout = setTimeout(() => {
+      const container = control.getContainer();
+      if (!container || container.style.display === 'none') {
+        map.removeLayer(control);
+        drawFallbackLines();
+      }
+    }, 3000);
+
+    return () => clearTimeout(timeout);
   }, [map, visiblePoints, activeDay]);
 
   // Empty state
@@ -369,15 +420,18 @@ const TripMap = ({ itinerary }) => {
   return (
     <div className="relative h-full w-full">
       {/* Stats toggle */}
-      <button
-        onClick={() => setShowStats(s => !s)}
-        className="absolute top-3 right-3 z-[400] w-8 h-8 flex items-center justify-center bg-cream border border-rule text-ink-muted hover:text-terra hover:border-terra transition-colors"
-      >
-        <BarChart3 size={14} strokeWidth={1.5} />
-      </button>
+      {!popupOpen && (
+        <button
+          onClick={() => setShowStats(s => !s)}
+          className="absolute top-3 right-3 z-[800] w-8 h-8 flex items-center justify-center bg-cream border border-rule text-ink-muted hover:text-terra hover:border-terra transition-colors"
+        >
+          <BarChart3 size={14} strokeWidth={1.5} />
+        </button>
+      )}
 
       {/* Day filter */}
-      <div className="absolute top-3 left-14 right-14 z-[400] flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
+      {!popupOpen && (
+        <div className="absolute top-3 left-14 right-14 z-[800] flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
         <button
           onClick={() => setActiveDay(null)}
           className={`shrink-0 px-3 py-1.5 text-xs font-medium border transition-colors ${
@@ -410,9 +464,10 @@ const TripMap = ({ itinerary }) => {
           </button>
         ))}
       </div>
+      )}
 
       {/* Stats panel */}
-      {showStats && (
+      {showStats && !popupOpen && (
         <JourneyStatsPanel
           stats={stats}
           onClose={() => setShowStats(false)}

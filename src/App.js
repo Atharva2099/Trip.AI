@@ -263,7 +263,7 @@ function AppContent() {
                 </div>
 
                 <div className={showForm ? 'xl:col-span-5' : 'xl:col-span-7'}>
-                  <div className="h-[500px] lg:h-[85vh] bg-cream-dark border-b border-rule xl:border-b-0 sticky top-[57px]">
+                  <div className="h-[500px] lg:h-[85vh] bg-cream-dark border-b border-rule xl:border-b-0 sticky top-[60px]">
                     <TripMap itinerary={itinerary} />
                   </div>
                 </div>
