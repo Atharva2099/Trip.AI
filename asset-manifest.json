@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/Trip.AI/static/css/main.ebbfa09c.css",
-    "main.js": "/Trip.AI/static/js/main.ac5af92a.js",
+    "main.css": "/Trip.AI/static/css/main.2087484d.css",
+    "main.js": "/Trip.AI/static/js/main.895a9609.js",
     "static/js/453.08a00752.chunk.js": "/Trip.AI/static/js/453.08a00752.chunk.js",
     "index.html": "/Trip.AI/index.html",
-    "main.ebbfa09c.css.map": "/Trip.AI/static/css/main.ebbfa09c.css.map",
-    "main.ac5af92a.js.map": "/Trip.AI/static/js/main.ac5af92a.js.map",
+    "main.2087484d.css.map": "/Trip.AI/static/css/main.2087484d.css.map",
+    "main.895a9609.js.map": "/Trip.AI/static/js/main.895a9609.js.map",
     "453.08a00752.chunk.js.map": "/Trip.AI/static/js/453.08a00752.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.ebbfa09c.css",
-    "static/js/main.ac5af92a.js"
+    "static/css/main.2087484d.css",
+    "static/js/main.895a9609.js"
   ]
 }
