@@ -7,7 +7,8 @@ import {
   parseModelJson,
   groundItineraryContext,
   pickModel,
-  callOpenRouter
+  callOpenRouter,
+  isDevLoginAllowed
 } from './lib.js';
 
 const app = new Hono();
@@ -301,15 +302,13 @@ app.post('/auth/logout', authMiddleware, async (c) => {
 // the environment name AND the request origin so it can never be
 // reached from a deployed worker even if the env var is missing.
 app.get('/auth/dev-login', async (c) => {
-  // Hard block in production. In dev, additionally require a localhost
-  // Origin so a malicious external site can't trigger this by spoofing
-  // the Origin header (the browser sets Origin for cross-origin requests
-  // and it cannot be set arbitrarily by JS in the browser).
-  if (c.env.ENVIRONMENT === 'production') {
-    return c.json({ error: 'Not found' }, 404);
-  }
-  const origin = c.req.header('Origin') || '';
-  if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+  const allowed = isDevLoginAllowed({
+    environment: c.env.ENVIRONMENT,
+    providedToken: c.req.query('token') || c.req.header('X-Dev-Login-Token'),
+    expectedToken: c.env.DEV_LOGIN_TOKEN,
+    origin: c.req.header('Origin') || ''
+  });
+  if (!allowed) {
     return c.json({ error: 'Not found' }, 404);
   }
 

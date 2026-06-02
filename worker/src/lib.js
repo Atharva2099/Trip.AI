@@ -31,6 +31,19 @@ export function pickModel(requestedModel, requestedProvider) {
   return { model, provider };
 }
 
+// Gate for /auth/dev-login. Returns true if the request is allowed to proceed.
+// - In production: requires a token (from query string or X-Dev-Login-Token
+//   header) that matches the DEV_LOGIN_TOKEN env var. The token is set via
+//   `wrangler secret put DEV_LOGIN_TOKEN`. Anyone without the token gets 404.
+// - In any other environment: requires a localhost Origin so a malicious
+//   external site can't trigger this by spoofing the Origin header.
+export function isDevLoginAllowed({ environment, providedToken, expectedToken, origin }) {
+  if (environment === 'production') {
+    return Boolean(expectedToken && providedToken && providedToken === expectedToken);
+  }
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin || '');
+}
+
 // Build the exact request body sent to OpenRouter. Exported so tests can
 // assert the shape without mocking fetch.
 export function buildOpenRouterBody({ messages, model, provider, temperature, maxTokens, topP = 0.9 }) {

@@ -17,14 +17,34 @@ export default function LandingPage() {
   const [currentImage, setCurrentImage] = useState(0);
   const [devLoading, setDevLoading] = useState(false);
   const [devError, setDevError] = useState(null);
+  const [devTokenInput, setDevTokenInput] = useState('');
+  const [showTokenInput, setShowTokenInput] = useState(false);
 
   const isDev = process.env.NODE_ENV === 'development';
 
-  const devSignIn = async () => {
+  // Try to read ?dev_login=... from the URL on first mount and sign in
+  // automatically. Lets the user bookmark:
+  //   https://<frontend>/?dev_login=<token>
+  // and the page signs them in without any further interaction.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('dev_login');
+    if (urlToken) {
+      // Clean the URL so the token doesn't linger in browser history.
+      window.history.replaceState({}, '', window.location.pathname);
+      devSignIn(urlToken);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const devSignIn = async (token) => {
     setDevLoading(true);
     setDevError(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/dev-login`, {
+      const url = token
+        ? `${API_BASE}/auth/dev-login?token=${encodeURIComponent(token)}`
+        : `${API_BASE}/auth/dev-login`;
+      const res = await fetch(url, {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
@@ -32,8 +52,8 @@ export default function LandingPage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
       }
-      const { token } = await res.json();
-      localStorage.setItem('tripai_token', token);
+      const data = await res.json();
+      localStorage.setItem('tripai_token', data.token);
       // Reload so AuthProvider picks up the token and the rest of the app mounts.
       window.location.href = '/';
     } catch (err) {
@@ -139,26 +159,61 @@ export default function LandingPage() {
               No passwords needed. One-click sign in.
             </p>
 
-            {isDev && (
-              <div className="mt-8 pt-6 border-t border-cream/20">
+            <div className="mt-8 pt-6 border-t border-cream/20">
+              {isDev ? (
                 <button
-                  onClick={devSignIn}
+                  onClick={() => devSignIn()}
                   disabled={devLoading}
                   className="flex items-center gap-2 px-6 py-3 text-xs font-medium uppercase tracking-[0.14em] border border-cream/40 text-cream/80 hover:text-cream hover:border-cream/70 transition-colors disabled:opacity-50"
                 >
                   <FlaskConical size={13} strokeWidth={1.5} />
                   {devLoading ? 'Signing in...' : 'Dev Sign-in (local only)'}
                 </button>
-                {devError && (
-                  <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-terra">
-                    {devError}
-                  </p>
-                )}
-                <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-cream/40">
-                  Local development only — never shown in production
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowTokenInput((s) => !s)}
+                    disabled={devLoading}
+                    className="flex items-center gap-2 px-6 py-3 text-xs font-medium uppercase tracking-[0.14em] border border-cream/40 text-cream/80 hover:text-cream hover:border-cream/70 transition-colors disabled:opacity-50"
+                  >
+                    <FlaskConical size={13} strokeWidth={1.5} />
+                    {showTokenInput ? 'Hide dev sign-in' : 'Dev sign-in (token)'}
+                  </button>
+                  {showTokenInput && (
+                    <form
+                      onSubmit={(e) => { e.preventDefault(); devSignIn(devTokenInput); }}
+                      className="mt-3 flex gap-2"
+                    >
+                      <input
+                        type="password"
+                        value={devTokenInput}
+                        onChange={(e) => setDevTokenInput(e.target.value)}
+                        placeholder="Paste DEV_LOGIN_TOKEN..."
+                        className="flex-1 px-3 py-2 bg-cream/10 border border-cream/30 text-cream placeholder-cream/40 text-xs focus:outline-none focus:border-cream"
+                        autoFocus
+                      />
+                      <button
+                        type="submit"
+                        disabled={devLoading || !devTokenInput}
+                        className="px-4 py-2 text-xs font-medium uppercase tracking-[0.14em] bg-cream text-ink hover:bg-cream/80 transition-colors disabled:opacity-50"
+                      >
+                        {devLoading ? 'Signing in...' : 'Sign in'}
+                      </button>
+                    </form>
+                  )}
+                </>
+              )}
+              {devError && (
+                <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-terra">
+                  {devError}
                 </p>
-              </div>
-            )}
+              )}
+              <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-cream/40">
+                {isDev
+                  ? 'Local development only — no token required'
+                  : 'Set DEV_LOGIN_TOKEN on the worker, then paste it above. Or use ?dev_login=<token> in the URL.'}
+              </p>
+            </div>
           </div>
         </div>
 

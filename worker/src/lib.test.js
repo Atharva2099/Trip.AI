@@ -12,7 +12,8 @@ import {
   buildOpenRouterBody,
   buildOpenRouterHeaders,
   callOpenRouter,
-  OPENROUTER_URL
+  OPENROUTER_URL,
+  isDevLoginAllowed
 } from './lib.js';
 
 describe('parseModelJson', () => {
@@ -115,6 +116,105 @@ describe('pickModel', () => {
 
   it('whitelist contains the cerebras/fp16 provider', () => {
     expect(ALLOWED_PROVIDERS.has('cerebras/fp16')).toBe(true);
+  });
+});
+
+describe('isDevLoginAllowed', () => {
+  describe('in production', () => {
+    it('allows when provided token matches expected', () => {
+      expect(isDevLoginAllowed({
+        environment: 'production',
+        providedToken: 'secret123',
+        expectedToken: 'secret123'
+      })).toBe(true);
+    });
+
+    it('blocks when no token is provided', () => {
+      expect(isDevLoginAllowed({
+        environment: 'production',
+        providedToken: null,
+        expectedToken: 'secret123'
+      })).toBe(false);
+    });
+
+    it('blocks when provided token does not match', () => {
+      expect(isDevLoginAllowed({
+        environment: 'production',
+        providedToken: 'wrong',
+        expectedToken: 'secret123'
+      })).toBe(false);
+    });
+
+    it('blocks when DEV_LOGIN_TOKEN is not set in the secret store', () => {
+      expect(isDevLoginAllowed({
+        environment: 'production',
+        providedToken: 'secret123',
+        expectedToken: null
+      })).toBe(false);
+    });
+
+    it('blocks when both are empty', () => {
+      expect(isDevLoginAllowed({
+        environment: 'production',
+        providedToken: null,
+        expectedToken: null
+      })).toBe(false);
+    });
+
+    it('ignores Origin in production (token-only gate)', () => {
+      // In prod, we don't care about Origin — only the token matters.
+      // An attacker with the token can sign in from anywhere, by design.
+      expect(isDevLoginAllowed({
+        environment: 'production',
+        providedToken: 'secret123',
+        expectedToken: 'secret123',
+        origin: 'https://evil.example.com'
+      })).toBe(true);
+    });
+  });
+
+  describe('in dev / staging / unspecified environment', () => {
+    it('allows when origin is localhost', () => {
+      expect(isDevLoginAllowed({
+        environment: undefined,
+        providedToken: undefined,
+        expectedToken: undefined,
+        origin: 'http://localhost:3000'
+      })).toBe(true);
+    });
+
+    it('allows when origin is 127.0.0.1', () => {
+      expect(isDevLoginAllowed({
+        origin: 'http://127.0.0.1:3000'
+      })).toBe(true);
+    });
+
+    it('blocks when origin is missing', () => {
+      expect(isDevLoginAllowed({
+        origin: ''
+      })).toBe(false);
+    });
+
+    it('blocks when origin is a non-localhost URL', () => {
+      expect(isDevLoginAllowed({
+        origin: 'https://example.com'
+      })).toBe(false);
+    });
+
+    it('blocks when origin is the production frontend', () => {
+      expect(isDevLoginAllowed({
+        origin: 'https://atharva2099.github.io'
+      })).toBe(false);
+    });
+
+    it('does not require a token in dev (localhost is enough)', () => {
+      expect(isDevLoginAllowed({
+        environment: 'development',
+        providedToken: null,
+        expectedToken: 'some-token',
+        origin: 'http://localhost:3000'
+      })).toBe(true);
+    });
   });
 });
 
