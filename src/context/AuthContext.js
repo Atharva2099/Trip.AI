@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authApi, getToken } from '../api/client';
+import { API_BASE } from '../config';
 
 const AuthContext = createContext(null);
 
@@ -46,8 +47,6 @@ export function AuthProvider({ children }) {
     window.addEventListener('auth:logout', handleLogout);
     return () => window.removeEventListener('auth:logout', handleLogout);
   }, []);
-
-  const API_BASE = 'https://tripai-api.athuspydy.workers.dev';
 
   const loginWithGitHub = useCallback(() => {
     window.location.href = `${API_BASE}/auth/github?origin=${encodeURIComponent(window.location.origin)}`;

@@ -10,7 +10,6 @@
     "@testing-library/user-event": "^13.5.0",
     "autoprefixer": "^10.4.20",
     "date-fns": "^2.30.0",
-    "groq-sdk": "^0.9.1",
     "leaflet": "^1.9.4",
     "leaflet-routing-machine": "^3.2.12",
     "lucide-react": "^0.263.1",
@@ -26,10 +25,16 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:react": "react-scripts test",
     "eject": "react-scripts eject",
-    "predeploy": "npm run build",
     "deploy": "npm run build && wrangler deploy",
+    "deploy:worker": "cd worker && wrangler deploy --env production",
+    "deploy:frontend": "npm run build && gh-pages -d build",
+    "db:migrate:remote": "cd worker && for f in migrations/*.sql; do wrangler d1 execute tripai-database --remote --config=./wrangler.toml --file=./$f; done",
+    "db:reset:local": "cd worker && wrangler d1 execute tripai-database --local --config=./wrangler.toml --command=\"DELETE FROM itineraries; DELETE FROM bookmarks; DELETE FROM sessions; DELETE FROM expenses;\"",
     "preview": "npm run build && wrangler dev"
   },
   "eslintConfig": {
@@ -52,7 +57,11 @@
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/ui": "^4.1.7",
     "gh-pages": "^6.3.0",
+    "jsdom": "^29.1.1",
+    "vitest": "^4.1.7",
     "wrangler": "^4.85.0"
   }
 }

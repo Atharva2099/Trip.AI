@@ -1,6 +1,6 @@
 import { format, eachDayOfInterval, parseISO } from 'date-fns';
-
-const API_BASE = 'https://tripai-api.athuspydy.workers.dev';
+import { API_BASE } from '../config';
+import { extractJson, validateAndAdjustCosts, buildPrompt } from './llmHelpers';
 
 const getErrorMessage = (status, errorData) => {
   switch (status) {
@@ -20,7 +20,7 @@ const getErrorMessage = (status, errorData) => {
   }
 };
 
-const makeLLMRequest = async (messages, temperature = 0.3, maxTokens = 6000) => {
+const makeLLMRequest = async (messages, temperature, maxTokens, grounding, model, provider) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000);
 
@@ -29,7 +29,7 @@ const makeLLMRequest = async (messages, temperature = 0.3, maxTokens = 6000) => 
       method: 'POST',
       signal: controller.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, temperature, maxTokens })
+      body: JSON.stringify({ messages, temperature, maxTokens, grounding, model, provider })
     });
 
     clearTimeout(timeoutId);
@@ -50,44 +50,10 @@ const makeLLMRequest = async (messages, temperature = 0.3, maxTokens = 6000) => 
   }
 };
 
-const validateAndAdjustCosts = (itinerary, numPeople) => {
-  let totalPerPerson = 0;
-  let costBreakdown = {
-    activities: 0,
-    food: 0,
-    transportation: 0
-  };
-
-  itinerary.days = itinerary.days.map(day => {
-    const activitiesCost = day.activities.reduce((sum, act) => sum + (act.cost || 0), 0);
-    const mealsCost = day.meals.reduce((sum, meal) => sum + (meal.cost || 0), 0);
-    const transportCost = day.activities.reduce((sum, act) => sum + (act.transport?.cost || 0), 0);
-    
-    costBreakdown.activities += activitiesCost;
-    costBreakdown.food += mealsCost;
-    costBreakdown.transportation += transportCost;
-    
-    const dailyTotal = activitiesCost + mealsCost + transportCost;
-    totalPerPerson += dailyTotal;
-    
-    return {
-      ...day,
-      dailyTotal
-    };
-  });
-
-  return {
-    ...itinerary,
-    costBreakdown,
-    perPersonTotal: totalPerPerson,
-    groupTotal: totalPerPerson * numPeople
-  };
-};
-
 export const generateItinerary = async (tripData) => {
   try {
-    if (!tripData.destination || !tripData.dates?.start || !tripData.dates?.end || !tripData.budget) {
-      throw new Error('Missing required trip data: Please fill in destination, dates, and budget');
+    if (!tripData.from || !tripData.destination || !tripData.dates?.start || !tripData.dates?.end || !tripData.budget) {
+      throw new Error('Missing required trip data: Please fill in From, Destination, dates, and budget');
     }
 
     const startDate = parseISO(tripData.dates.start);
@@ -108,82 +74,65 @@ export const generateItinerary = async (tripData) => {
     }
 
     const formattedDates = dateRange.map(date => format(date, 'yyyy-MM-dd'));
-    const budgetPerPerson = Math.floor(parseInt(tripData.budget) / parseInt(tripData.numPeople || 1));
+    const numPeople = parseInt(tripData.numPeople || 1);
+    const budgetPerPerson = Math.floor(parseInt(tripData.budget) / numPeople);
 
     if (budgetPerPerson < 50) {
-      throw new Error('Budget too low: Minimum $50 per person per day required');
+      throw new Error('Budget too low: Minimum $50 per person total required');
     }
 
-    const template = {
-      days: [{
-        date: formattedDates[0],
-        activities: [{
-          name: "Sample Activity",
-          time: "09:00",
-          description: "Activity description",
-          cost: 50,
-          coordinates: { lat: 0, lng: 0 },
-          transport: { method: "taxi", duration: "20 min", cost: 10 }
-        }],
-        meals: [{
-          type: "breakfast", time: "08:00", name: "Sample Restaurant",
-          description: "Restaurant description", cost: 20
-        }],
-        dailyTotal: 80
-      }]
-    };
+    const fromName = typeof tripData.from === 'string' ? tripData.from : tripData.from?.fullName;
+    if (!fromName) {
+      throw new Error('Missing origin city');
+    }
 
     const dayCount = formattedDates.length;
     const groupBudget = parseInt(tripData.budget);
-    const systemPrompt = `Generate a ${dayCount}-day travel itinerary for ${tripData.destination} in valid JSON matching this structure:
-${JSON.stringify(template, null, 2)}
 
-CRITICAL BUDGET RULES — these override all other instructions:
-- TOTAL GROUP BUDGET CEILING: $${groupBudget} for ALL ${tripData.numPeople} people combined across ALL ${dayCount} days
-- This means total cost per person must stay under $${Math.floor(groupBudget / tripData.numPeople)}
-- If you cannot fit realistic activities within budget, CUT activities (2 per day minimum) or choose cheaper options
-- NEVER exceed the total budget — underspending is acceptable, overspending is not
-- Accommodation is NOT included in this budget (user books separately)
-- Costs to include: activities entry fees, meals, local transport between activities
+    // The system prompt is built server-side after grounding. We send an
+    // initial prompt without the web context; the worker fetches Exa and
+    // prepends results before calling OpenRouter.
+    const { systemPrompt, userPrompt } = buildPrompt({
+      destination: tripData.destination,
+      from: fromName,
+      dates: tripData.dates,
+      dayCount,
+      groupBudget,
+      numPeople,
+      budgetPerPerson,
+      formattedDates,
+      interests: tripData.interests
+    });
 
-Other Rules:
-- 2-3 activities + 3 meals per day
-- Same-day activities must be in the same neighborhood (walking/short drive)
-- Different days explore different areas of ${tripData.destination}
-- Transport between activities: walk/taxi/local transit under 15 min
-- All locations real with exact coordinates
-- Realistic costs for ${tripData.destination}
-- Activities between 8:00-22:00
-- No duplicate places anywhere in the trip`;
+    const grounding = {
+      destination: tripData.destination,
+      home: fromName
+    };
 
-    const userPrompt = `Group budget: $${groupBudget} total for ${tripData.numPeople} people over ${dayCount} days (about $${budgetPerPerson}/person/day MAX)
-Dates: ${formattedDates.join(', ')}
-Interests: ${tripData.interests || 'general sightseeing'}
+    const rawContent = await makeLLMRequest(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      0.3,
+      5000,
+      grounding,
+      tripData.model,
+      tripData.modelProvider
+    );
 
-Generate the itinerary JSON now. Stay UNDER the total budget.`;
-
-    const content = await makeLLMRequest([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt }
-    ], 0.4, 6000);
-
-    const cleanContent = content
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim();
-
-    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const parsed = extractJson(rawContent);
+    if (!parsed) {
       throw new Error('Invalid response format: No JSON object found');
     }
 
-    let parsedContent = JSON.parse(jsonMatch[0]);
-    let validatedItinerary = validateAndAdjustCosts(parsedContent, tripData.numPeople);
+    let validatedItinerary = validateAndAdjustCosts(parsed, numPeople);
 
-    // Budget enforcement: if over budget, ask LLM to trim
-    if (validatedItinerary.groupTotal > groupBudget) {
+    // Iterative budget enforcement.
+    const MAX_TRIM_PASSES = 3;
+    for (let attempt = 0; attempt < MAX_TRIM_PASSES && validatedItinerary.groupTotal > groupBudget; attempt++) {
       const overBy = validatedItinerary.groupTotal - groupBudget;
-      const trimPrompt = `This itinerary is $${overBy} OVER the $${groupBudget} group budget.
+      const trimPrompt = `This itinerary is $${overBy} OVER the $${groupBudget} group budget (attempt ${attempt + 1} of ${MAX_TRIM_PASSES}).
 
 Current itinerary:
 ${JSON.stringify(validatedItinerary.days.map(d => ({
@@ -195,43 +144,61 @@ ${JSON.stringify(validatedItinerary.days.map(d => ({
 Trim this to stay UNDER $${groupBudget} total by:
 1. Replacing expensive activities with cheaper or free alternatives
 2. Replacing expensive meals with cheaper local spots
-3. Reducing transport costs
+3. Reducing transport costs (consider switching from flight to train/bus for medium distances)
 4. If needed, remove 1 activity from the most expensive day
 
-Keep the SAME structure. Return the trimmed JSON.`;
+Keep the SAME structure (including transport_to_destination, transport_back_home, accommodation_options). Return the trimmed JSON.`;
 
-      const trimContent = await makeLLMRequest([
-        { role: "system", content: systemPrompt },
-        { role: "user", content: trimPrompt }
-      ], 0.3, 6000);
+      const trimRaw = await makeLLMRequest(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: trimPrompt }
+        ],
+        0.3,
+        5000,
+        grounding,
+        tripData.model,
+        tripData.modelProvider
+      );
 
-      const cleanTrimContent = trimContent
-        .replace(/```json\n?/g, '')
-        .replace(/```\n?/g, '')
-        .trim();
-
-      const trimJsonMatch = cleanTrimContent.match(/\{[\s\S]*\}/);
-      if (trimJsonMatch) {
-        parsedContent = JSON.parse(trimJsonMatch[0]);
-        validatedItinerary = validateAndAdjustCosts(parsedContent, tripData.numPeople);
-      }
+      const trimParsed = extractJson(trimRaw);
+      if (!trimParsed) break;
+      validatedItinerary = validateAndAdjustCosts(trimParsed, numPeople);
     }
 
-    const locations = validatedItinerary.days.flatMap(day => 
-      day.activities.map(activity => ({
+    if (validatedItinerary.groupTotal > groupBudget) {
+      console.warn(
+        `Itinerary is $${validatedItinerary.groupTotal - groupBudget} over budget after ${MAX_TRIM_PASSES} trim attempts`
+      );
+    }
+
+    const locations = validatedItinerary.days.flatMap(day =>
+      (day.activities || []).map(activity => ({
         name: activity.name,
         coordinates: activity.coordinates,
         description: activity.description
       }))
     );
 
-    return {
-      itinerary: validatedItinerary,
-      locations
-    };
+    return { itinerary: validatedItinerary, locations };
 
   } catch (error) {
     console.error('Generation Error:', error);
+    // Surface a friendlier message for the common 401 case so the user
+    // doesn't stare at "User not found." wondering what's broken.
+    const msg = String(error.message || '');
+    if (/user not found|invalid api key|unauthorized|401/i.test(msg)) {
+      throw new Error('OpenRouter rejected the API key. Set OPENROUTER_API_KEY in worker/.dev.vars and restart wrangler.');
+    }
+    if (/timed out|abort/i.test(msg)) {
+      throw new Error('The model took too long. Try again, or pick a faster model from the dropdown.');
+    }
+    if (/rate|429/i.test(msg)) {
+      throw new Error('Too many requests. Wait a few minutes and try again.');
+    }
+    if (/quota|credits|402/i.test(msg)) {
+      throw new Error('OpenRouter account is out of credits. Top up at openrouter.ai.');
+    }
     throw new Error(`Failed to generate valid itinerary: ${error.message}`);
   }
 };

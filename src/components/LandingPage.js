@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, MapPin, Calendar, DollarSign, Sparkles, ArrowRight } from 'lucide-react';
+import { Compass, MapPin, Calendar, DollarSign, Sparkles, ArrowRight, FlaskConical } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../config';
 
 const UNSPLASH_IMAGES = [
   'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80',
@@ -14,6 +15,32 @@ const UNSPLASH_IMAGES = [
 export default function LandingPage() {
   const { loginWithGitHub, loginWithGoogle } = useAuth();
   const [currentImage, setCurrentImage] = useState(0);
+  const [devLoading, setDevLoading] = useState(false);
+  const [devError, setDevError] = useState(null);
+
+  const isDev = process.env.NODE_ENV === 'development';
+
+  const devSignIn = async () => {
+    setDevLoading(true);
+    setDevError(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/dev-login`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const { token } = await res.json();
+      localStorage.setItem('tripai_token', token);
+      // Reload so AuthProvider picks up the token and the rest of the app mounts.
+      window.location.href = '/';
+    } catch (err) {
+      setDevError(err.message);
+      setDevLoading(false);
+    }
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -111,6 +138,27 @@ export default function LandingPage() {
             <p className="mt-6 text-[10px] uppercase tracking-[0.14em] text-cream/40">
               No passwords needed. One-click sign in.
             </p>
+
+            {isDev && (
+              <div className="mt-8 pt-6 border-t border-cream/20">
+                <button
+                  onClick={devSignIn}
+                  disabled={devLoading}
+                  className="flex items-center gap-2 px-6 py-3 text-xs font-medium uppercase tracking-[0.14em] border border-cream/40 text-cream/80 hover:text-cream hover:border-cream/70 transition-colors disabled:opacity-50"
+                >
+                  <FlaskConical size={13} strokeWidth={1.5} />
+                  {devLoading ? 'Signing in...' : 'Dev Sign-in (local only)'}
+                </button>
+                {devError && (
+                  <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-terra">
+                    {devError}
+                  </p>
+                )}
+                <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-cream/40">
+                  Local development only — never shown in production
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

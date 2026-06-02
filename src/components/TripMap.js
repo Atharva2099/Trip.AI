@@ -5,23 +5,20 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import 'leaflet-routing-machine';
 import {
+  BarChart3, X, ChevronRight, MapPin, Navigation,
+  Clock, TrendingUp, Footprints, Car, Bus, Train, Map as MapIcon
+} from 'lucide-react';
+import { DAY_COLORS } from '../utils/colors';
+import {
   computeJourneyStats,
   formatDistance,
   buildLegLookup
 } from '../utils/map';
-import {
-  BarChart3, X, ChevronRight, MapPin, Navigation,
-  Clock, TrendingUp, Footprints, Car, Bus, Train, Map as MapIcon
-} from 'lucide-react';
 
 // ─── Custom marker icons ─────────────────────────────────────
 
 const createCustomIcon = (dayNumber) => {
-  const colors = [
-    '#C9593A', '#6B5C4A', '#1A1208', '#B0A090',
-    '#8B7355', '#A08060', '#5C4A3A', '#D8D0C4'
-  ];
-  const color = colors[(dayNumber - 1) % colors.length];
+  const color = DAY_COLORS[(dayNumber - 1) % DAY_COLORS.length];
 
   return L.divIcon({
     className: 'custom-marker',
@@ -224,15 +221,10 @@ const TripMap = ({ itinerary }) => {
   const allPoints = useMemo(() => {
     if (!itinerary?.days) return [];
 
-    const dayColors = [
-      '#6366F1', '#EC4899', '#F59E0B', '#10B981',
-      '#3B82F6', '#8B5CF6', '#EF4444', '#14B8A6'
-    ];
-
     const points = [];
     itinerary.days.forEach((day, dayIndex) => {
       const dayNumber = dayIndex + 1;
-      const dayColor = dayColors[dayIndex % dayColors.length];
+      const dayColor = DAY_COLORS[dayIndex % DAY_COLORS.length];
 
       (day.activities || []).forEach((activity, actIndex) => {
         if (
@@ -328,7 +320,7 @@ const TripMap = ({ itinerary }) => {
       if (points.length < 2) return;
       points.sort((a, b) => a.sequenceIndex - b.sequenceIndex);
       const latlngs = points.map((p) => [p.coordinates.lat, p.coordinates.lng]);
-      const color = points[0]?.dayColor || '#6366F1';
+      const color = points[0]?.dayColor || DAY_COLORS[0];
 
       L.polyline(latlngs, { color: '#F5F0E8', weight: 6, opacity: 0.8, interactive: false }).addTo(map);
       L.polyline(latlngs, { color, weight: 3, opacity: 0.9, interactive: false }).addTo(map);
@@ -360,8 +352,8 @@ const TripMap = ({ itinerary }) => {
     );
 
     const routeColor = activeDay !== null
-      ? visiblePoints[0]?.dayColor || '#6366F1'
-      : '#6366F1';
+      ? visiblePoints[0]?.dayColor || DAY_COLORS[0]
+      : DAY_COLORS[0];
 
     const control = L.Routing.control({
       waypoints,
@@ -410,10 +402,8 @@ const TripMap = ({ itinerary }) => {
     );
   }
 
-  const defaultCenter = [18.5204, 73.8567];
-  const center = visiblePoints.length > 0
-    ? [visiblePoints[0].coordinates.lat, visiblePoints[0].coordinates.lng]
-    : defaultCenter;
+  // Center on the first visible point — never hardcode a city.
+  const center = [visiblePoints[0].coordinates.lat, visiblePoints[0].coordinates.lng];
 
   const dayCount = itinerary.days?.length || 0;
 

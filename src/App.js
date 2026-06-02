@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus, Edit3, Compass, X, LogOut, User, MapPin, Bookmark } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LandingPage from './components/LandingPage';
@@ -9,7 +9,6 @@ import ItineraryDisplay from './components/ItineraryDisplay';
 import SavedTrips from './components/SavedTrips';
 import BookmarksPage from './components/BookmarksPage';
 import { generateItinerary } from './utils/llm';
-import { getTheme } from './utils/season';
 import { tripsApi } from './api/client';
 import './App.css';
 
@@ -52,6 +51,9 @@ function AuthNav() {
 function AppContent() {
   const [tripData, setTripData] = useState(null);
   const [itinerary, setItinerary] = useState(null);
+  const [currentTripId, setCurrentTripId] = useState(null);
+  const [currentModel, setCurrentModel] = useState(null);
+  const [currentProvider, setCurrentProvider] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState(null);
@@ -68,11 +70,15 @@ function AppContent() {
       setTripData(formData);
       const result = await generateItinerary(formData);
       setItinerary(result.itinerary);
+      setCurrentModel(formData.model);
+      setCurrentProvider(formData.modelProvider);
       setShowForm(false);
+      setCurrentTripId(null);
 
       if (isAuthenticated) {
         try {
-          await tripsApi.create({
+          const fromMeta = formData._fromMeta;
+          const { id } = await tripsApi.create({
             title: `${formData.destination} Trip`,
             destination: formData.destination,
             start_date: formData.dates?.start,
@@ -80,9 +86,16 @@ function AppContent() {
             budget: formData.budget,
             proposed_budget: result.itinerary?.groupTotal || formData.budget,
             travelers: formData._travelers || { adults: 2, children: 0 },
-            interests: formData.interests?.split(',').map(s => s.trim()).filter(Boolean) || [],
+            interests: typeof formData.interests === 'string'
+              ? formData.interests.split(',').map(s => s.trim()).filter(Boolean)
+              : (formData.interests || []),
+            from_city: typeof formData.from === 'string' ? formData.from : (fromMeta?.name || null),
+            from_country: fromMeta?.country || null,
+            model: formData.model,
+            model_provider: formData.modelProvider || null,
             itinerary_data: result.itinerary
           });
+          setCurrentTripId(id);
         } catch (saveErr) {
           console.error('Failed to auto-save trip:', saveErr);
         }
@@ -96,11 +109,18 @@ function AppContent() {
 
   const handleItineraryUpdate = (updatedItinerary) => {
     setItinerary(updatedItinerary);
+    if (currentTripId && isAuthenticated) {
+      tripsApi.update(currentTripId, { itinerary_data: updatedItinerary })
+        .catch((err) => console.error('Failed to persist itinerary update:', err));
+    }
   };
 
   const handleNewTrip = () => {
     setTripData(null);
     setItinerary(null);
+    setCurrentTripId(null);
+    setCurrentModel(null);
+    setCurrentProvider(null);
     setError(null);
     setShowForm(true);
     setView('plan');
@@ -113,9 +133,14 @@ function AppContent() {
       budget: trip.budget,
       numPeople: (trip.travelers?.adults || 2) + (trip.travelers?.children || 0),
       interests: Array.isArray(trip.interests) ? trip.interests.join(', ') : '',
-      _travelers: trip.travelers
+      _travelers: trip.travelers,
+      model: trip.model,
+      modelProvider: trip.model_provider
     });
     setItinerary(trip.itinerary_data);
+    setCurrentTripId(trip.id);
+    setCurrentModel(trip.model);
+    setCurrentProvider(trip.model_provider);
     setShowForm(false);
     setView('plan');
   };
@@ -259,6 +284,8 @@ function AppContent() {
                     itinerary={itinerary}
                     tripData={tripData}
                     onItineraryUpdate={handleItineraryUpdate}
+                    model={currentModel}
+                    provider={currentProvider}
                   />
                 </div>
 

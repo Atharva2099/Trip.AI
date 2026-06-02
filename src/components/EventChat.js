@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { modifyEvent } from '../api/modifyEvent';
 
-const EventChat = ({ event, onClose, onEventUpdate, isActivity = true, currentItinerary }) => {
+const EventChat = ({ event, onClose, onEventUpdate, isActivity = true, currentItinerary, model, provider }) => {
   const [message, setMessage] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -55,7 +55,7 @@ const EventChat = ({ event, onClose, onEventUpdate, isActivity = true, currentIt
         }
       };
 
-      const result = await modifyEvent(userMessage, context, currentItinerary);
+      const result = await modifyEvent(userMessage, context, currentItinerary, model, provider);
 
       // Add AI response to chat
       setChatHistory(prev => [...prev, { 
@@ -68,7 +68,7 @@ const EventChat = ({ event, onClose, onEventUpdate, isActivity = true, currentIt
         onEventUpdate(result.updatedEvent);
         setChatHistory(prev => [...prev, {
           role: 'assistant',
-          content: "Ive updated the event with your changes. Is there anything else you'd like to modify?"
+          content: "I've updated the event with your changes. Is there anything else you'd like to modify?"
         }]);
       }
     } catch (error) {

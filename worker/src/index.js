@@ -1,5 +1,14 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import {
+  OPENROUTER_DEFAULT_MODEL,
+  OPENROUTER_DEFAULT_PROVIDER,
+  rateLimit,
+  parseModelJson,
+  groundItineraryContext,
+  pickModel,
+  callOpenRouter
+} from './lib.js';
 
 const app = new Hono();
 
@@ -24,16 +33,31 @@ app.use('*', cors({
 
 // ─── JWT Utils ───────────────────────────────────────────────
 
+const b64urlEncode = (input) => {
+  const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : new Uint8Array(input);
+  let str = '';
+  bytes.forEach(b => (str += String.fromCharCode(b)));
+  return btoa(str).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+};
+
+const b64urlDecode = (str) => {
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  const bin = atob(str);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+};
+
 async function signJWT(payload, secret) {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   );
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = btoa(JSON.stringify(payload));
+  const header = b64urlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const body = b64urlEncode(JSON.stringify(payload));
   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${header}.${body}`));
-  const signature = btoa(String.fromCharCode(...new Uint8Array(sig)));
-  return `${header}.${body}.${signature}`;
+  return `${header}.${body}.${b64urlEncode(sig)}`;
 }
 
 async function verifyJWT(token, secret) {
@@ -44,10 +68,10 @@ async function verifyJWT(token, secret) {
     const key = await crypto.subtle.importKey(
       'raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
     );
-    const sigBytes = Uint8Array.from(atob(signature.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+    const sigBytes = b64urlDecode(signature);
     const valid = await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(`${header}.${body}`));
     if (!valid) return null;
-    return JSON.parse(atob(body));
+    return JSON.parse(new TextDecoder().decode(b64urlDecode(body)));
   } catch {
     return null;
   }
@@ -68,6 +92,15 @@ async function authMiddleware(c, next) {
   const payload = await verifyJWT(token, c.env.JWT_SECRET);
   if (!payload || payload.exp < Math.floor(Date.now() / 1000)) {
     return c.json({ error: 'Unauthorized' }, 401);
+  }
+  // jti == sessions.id. Verify the session is still alive so logout actually invalidates tokens.
+  if (payload.jti) {
+    const row = await c.env.DB.prepare(
+      'SELECT 1 FROM sessions WHERE id = ? AND user_id = ?'
+    ).bind(payload.jti, payload.sub).first();
+    if (!row) {
+      return c.json({ error: 'Session expired' }, 401);
+    }
   }
   c.set('user', payload);
   await next();
@@ -123,7 +156,6 @@ app.get('/auth/github/callback', async (c) => {
     return c.redirect(appRedirect(appOrigin, '/?error=auth_failed', c.env.APP_URL));
   }
 
-  // Exchange code for token
   const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -139,13 +171,11 @@ app.get('/auth/github/callback', async (c) => {
     return c.redirect(appRedirect(appOrigin, '/?error=auth_failed', c.env.APP_URL));
   }
 
-  // Get user info
   const userRes = await fetch('https://api.github.com/user', {
     headers: { Authorization: `Bearer ${tokenData.access_token}`, 'User-Agent': 'Trip.AI' }
   });
   const githubUser = await userRes.json();
 
-  // Get email
   const emailRes = await fetch('https://api.github.com/user/emails', {
     headers: { Authorization: `Bearer ${tokenData.access_token}`, 'User-Agent': 'Trip.AI' }
   });
@@ -155,20 +185,23 @@ app.get('/auth/github/callback', async (c) => {
   const userId = `gh_${githubUser.id}`;
   const db = c.env.DB;
 
-  // Upsert user
   await db.prepare(
     `INSERT INTO users (id, email, name, avatar) VALUES (?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET name=excluded.name, avatar=excluded.avatar`
   ).bind(userId, primaryEmail, githubUser.name || githubUser.login, githubUser.avatar_url).run();
 
-  // Create session
-  const sessionToken = generateId();
-  const expiresAt = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // 30 days
+  const sessionId = generateId();
+  const expiresAt = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+  // The legacy `token` column is still NOT NULL UNIQUE; pass sessionId to
+  // satisfy the constraint. The new flow identifies sessions by `id` (= jti).
   await db.prepare(
     `INSERT INTO sessions (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)`
-  ).bind(generateId(), userId, sessionToken, expiresAt).run();
+  ).bind(sessionId, userId, sessionId, expiresAt).run();
 
-  const jwt = await signJWT({ sub: userId, email: primaryEmail, name: githubUser.name || githubUser.login, exp: expiresAt }, c.env.JWT_SECRET);
+  const jwt = await signJWT(
+    { sub: userId, email: primaryEmail, name: githubUser.name || githubUser.login, jti: sessionId, exp: expiresAt },
+    c.env.JWT_SECRET
+  );
 
   return c.redirect(appRedirect(appOrigin, `/?token=${jwt}`, c.env.APP_URL));
 });
@@ -232,13 +265,16 @@ app.get('/auth/google/callback', async (c) => {
      ON CONFLICT(id) DO UPDATE SET name=excluded.name, avatar=excluded.avatar`
   ).bind(userId, googleUser.email, googleUser.name, googleUser.picture).run();
 
-  const sessionToken = generateId();
+  const sessionId = generateId();
   const expiresAt = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
   await db.prepare(
     `INSERT INTO sessions (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)`
-  ).bind(generateId(), userId, sessionToken, expiresAt).run();
+  ).bind(sessionId, userId, sessionId, expiresAt).run();
 
-  const jwt = await signJWT({ sub: userId, email: googleUser.email, name: googleUser.name, exp: expiresAt }, c.env.JWT_SECRET);
+  const jwt = await signJWT(
+    { sub: userId, email: googleUser.email, name: googleUser.name, jti: sessionId, exp: expiresAt },
+    c.env.JWT_SECRET
+  );
 
   return c.redirect(appRedirect(appOrigin, `/?token=${jwt}`, c.env.APP_URL));
 });
@@ -247,20 +283,55 @@ app.get('/auth/google/callback', async (c) => {
 
 app.get('/auth/me', authMiddleware, async (c) => {
   const user = c.get('user');
-  const db = c.env.DB;
-  const row = await db.prepare('SELECT id, email, name, avatar FROM users WHERE id = ?').bind(user.sub).first();
+  const row = await c.env.DB.prepare('SELECT id, email, name, avatar FROM users WHERE id = ?').bind(user.sub).first();
   return c.json({ user: row });
 });
 
 app.post('/auth/logout', authMiddleware, async (c) => {
   const user = c.get('user');
-  const auth = c.req.header('Authorization') || '';
-  const token = auth.replace('Bearer ', '');
-  const payload = await verifyJWT(token, c.env.JWT_SECRET);
-  if (payload) {
-    await c.env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND token = ?').bind(user.sub, payload.jti).run();
+  if (user.jti) {
+    await c.env.DB.prepare('DELETE FROM sessions WHERE id = ? AND user_id = ?').bind(user.jti, user.sub).run();
   }
   return c.json({ success: true });
+});
+
+// ─── Dev Login (local only) ──────────────────────────────────
+// Issues a real JWT for a `dev-user` so the planner is testable
+// end-to-end without setting up GitHub/Google OAuth. Gated by BOTH
+// the environment name AND the request origin so it can never be
+// reached from a deployed worker even if the env var is missing.
+app.get('/auth/dev-login', async (c) => {
+  // Hard block in production. In dev, additionally require a localhost
+  // Origin so a malicious external site can't trigger this by spoofing
+  // the Origin header (the browser sets Origin for cross-origin requests
+  // and it cannot be set arbitrarily by JS in the browser).
+  if (c.env.ENVIRONMENT === 'production') {
+    return c.json({ error: 'Not found' }, 404);
+  }
+  const origin = c.req.header('Origin') || '';
+  if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    return c.json({ error: 'Not found' }, 404);
+  }
+
+  const userId = 'dev-user';
+  const db = c.env.DB;
+  await db.prepare(
+    `INSERT INTO users (id, email, name, avatar) VALUES (?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET name=excluded.name, avatar=excluded.avatar`
+  ).bind(userId, 'dev@trip.ai', 'Dev User', null).run();
+
+  const sessionId = generateId();
+  const expiresAt = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+  await db.prepare(
+    `INSERT INTO sessions (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)`
+  ).bind(sessionId, userId, sessionId, expiresAt).run();
+
+  const jwt = await signJWT(
+    { sub: userId, email: 'dev@trip.ai', name: 'Dev User', jti: sessionId, exp: expiresAt },
+    c.env.JWT_SECRET
+  );
+
+  return c.json({ token: jwt, user: { id: userId, email: 'dev@trip.ai', name: 'Dev User' } });
 });
 
 // ─── Trips ───────────────────────────────────────────────────
@@ -312,6 +383,23 @@ app.post('/api/trips', authMiddleware, async (c) => {
   return c.json({ id }, 201);
 });
 
+app.put('/api/trips/:id', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  if (body.itinerary_data !== undefined) {
+    await c.env.DB.prepare(
+      `UPDATE itineraries SET itinerary_data = ? WHERE id = ? AND user_id = ?`
+    ).bind(JSON.stringify(body.itinerary_data), id, user.sub).run();
+  }
+  if (body.proposed_budget !== undefined) {
+    await c.env.DB.prepare(
+      `UPDATE itineraries SET proposed_budget = ? WHERE id = ? AND user_id = ?`
+    ).bind(body.proposed_budget, id, user.sub).run();
+  }
+  return c.json({ success: true });
+});
+
 app.delete('/api/trips/:id', authMiddleware, async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
@@ -350,145 +438,109 @@ app.delete('/api/bookmarks/:id', authMiddleware, async (c) => {
   return c.json({ success: true });
 });
 
-// ─── Expenses ────────────────────────────────────────────────
-
-app.get('/api/expenses', authMiddleware, async (c) => {
-  const user = c.get('user');
-  const itineraryId = c.req.query('itinerary_id');
-  let query = `SELECT * FROM expenses WHERE user_id = ?`;
-  const params = [user.sub];
-  if (itineraryId) {
-    query += ` AND itinerary_id = ?`;
-    params.push(itineraryId);
-  }
-  query += ` ORDER BY day, spent_at`;
-  const { results } = await c.env.DB.prepare(query).bind(...params).all();
-  return c.json({ expenses: results });
-});
-
-app.post('/api/expenses', authMiddleware, async (c) => {
-  const user = c.get('user');
-  const body = await c.req.json();
-  const id = generateId();
-  await c.env.DB.prepare(
-    `INSERT INTO expenses (id, user_id, itinerary_id, day, category, description, planned_amount, actual_amount, spent_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(id, user.sub, body.itinerary_id, body.day, body.category, body.description, body.planned_amount, body.actual_amount, body.spent_at || Math.floor(Date.now() / 1000)).run();
-  return c.json({ id }, 201);
-});
-
-app.put('/api/expenses/:id', authMiddleware, async (c) => {
-  const user = c.get('user');
-  const id = c.req.param('id');
-  const body = await c.req.json();
-  await c.env.DB.prepare(
-    `UPDATE expenses SET actual_amount = ? WHERE id = ? AND user_id = ?`
-  ).bind(body.actual_amount, id, user.sub).run();
-  return c.json({ success: true });
-});
-
-app.delete('/api/expenses/:id', authMiddleware, async (c) => {
-  const user = c.get('user');
-  const id = c.req.param('id');
-  await c.env.DB.prepare('DELETE FROM expenses WHERE id = ? AND user_id = ?').bind(id, user.sub).run();
-  return c.json({ success: true });
-});
-
-// ─── Profile (for personalization) ───────────────────────────
-
-app.get('/api/profile', authMiddleware, async (c) => {
-  const user = c.get('user');
-  const db = c.env.DB;
-
-  const { results: pastTrips } = await db.prepare(
-    `SELECT destination, interests, budget, itinerary_data, created_at
-     FROM itineraries WHERE user_id = ? ORDER BY created_at DESC LIMIT 10`
-  ).bind(user.sub).all();
-
-  const { results: bookmarks } = await db.prepare(
-    `SELECT name, type, destination, notes FROM bookmarks WHERE user_id = ?`
-  ).bind(user.sub).all();
-
-  const { results: spending } = await db.prepare(
-    `SELECT category, AVG(planned_amount) as planned, AVG(actual_amount) as actual
-     FROM expenses WHERE user_id = ? GROUP BY category`
-  ).bind(user.sub).all();
-
-  // Parse JSON fields
-  pastTrips.forEach(t => {
-    try { t.interests = JSON.parse(t.interests); } catch { t.interests = []; }
-  });
-
-  return c.json({ pastTrips, bookmarks, spending });
-});
-
 // ─── LLM Proxy ───────────────────────────────────────────────
 
 app.post('/api/generate', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!rateLimit(`gen:${ip}`, 10, 10 * 60 * 1000)) {
+    return c.json({ error: 'Too many requests. Please wait a few minutes.' }, 429);
+  }
+
   const body = await c.req.json();
   const messages = body.messages;
-  const temperature = body.temperature ?? 0.4;
-  const maxTokens = body.maxTokens ?? 6000;
+  const temperature = body.temperature ?? 0.3;
+  const maxTokens = body.maxTokens ?? 5000;
+  const grounding = body.grounding; // { destination, home } from client
+  const { model, provider } = pickModel(body.model, body.provider);
 
   const apiKey = c.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return c.json({ error: 'Server configuration error: no API key configured' }, 500);
+    return c.json({
+      error: 'OPENROUTER_API_KEY is not configured on the server. Set it in worker/.dev.vars (dev) or via `wrangler secret put` (prod), then restart.',
+      code: 'MISSING_API_KEY'
+    }, 503);
+  }
+  if (/REPLACE-ME|YOUR-KEY|placeholder/i.test(apiKey)) {
+    return c.json({
+      error: 'OPENROUTER_API_KEY is still a placeholder. Replace it in worker/.dev.vars with a real key from openrouter.ai/keys.',
+      code: 'PLACEHOLDER_API_KEY'
+    }, 503);
   }
 
-  const model = 'deepseek/deepseek-v4-flash';
+  // Inject Exa grounding context into the first system message if available.
+  let contextBlock = '';
+  try {
+    if (grounding?.destination) {
+      contextBlock = await groundItineraryContext(
+        { destination: grounding.destination, home: grounding.home },
+        c.env.EXA_API_KEY
+      );
+    }
+  } catch {
+    contextBlock = '';
+  }
+
+  if (contextBlock && messages.length > 0 && messages[0].role === 'system') {
+    messages[0] = { ...messages[0], content: `${messages[0].content}\n\n${contextBlock}` };
+  } else if (contextBlock) {
+    messages.unshift({ role: 'system', content: contextBlock });
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000);
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': c.env.APP_URL || 'https://atharva2099.github.io/Trip.AI',
-        'X-Title': 'Trip.AI'
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        top_p: 1,
-        include_reasoning: false,
-        response_format: { type: 'json_object' }
-      })
-    });
-
+    const content = await callOpenRouter(
+      { messages, model, provider, temperature, maxTokens, apiKey, appUrl: c.env.APP_URL },
+      fetch
+    );
     clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      return c.json({
-        error: errorData.error?.message || `OpenRouter error: ${response.status}`
-      }, response.status);
-    }
-
-    const data = await response.json();
-    return c.json({ content: data.choices[0].message.content });
+    return c.json({ content, model, provider });
   } catch (error) {
     clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      return c.json({ error: 'Request timed out after 5 minutes' }, 504);
-    }
-    return c.json({ error: error.message }, 500);
+    // Map error codes to HTTP statuses the frontend can branch on.
+    let status = 500;
+    if (error.code === 'MISSING_API_KEY' || error.code === 'PLACEHOLDER_API_KEY') status = 503;
+    else if (/timeout/i.test(error.message)) status = 504;
+    else if (error.status === 401 || error.status === 403) status = 502;
+    return c.json({ error: error.message, code: error.code || null }, status);
   }
 });
 
 // ─── Modify Event ────────────────────────────────────────────
 
 app.post('/api/modify-event', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!rateLimit(`mod:${ip}`, 30, 10 * 60 * 1000)) {
+    return c.json({ error: 'Too many requests. Please wait a few minutes.' }, 429);
+  }
+
   const body = await c.req.json();
-  const { message, context, currentItinerary } = body;
+  const { message, context, currentItinerary, grounding } = body;
+  const { model, provider } = pickModel(body.model, body.provider);
+
+  if (!context || !currentItinerary?.days) {
+    return c.json({ error: 'Missing context or currentItinerary' }, 400);
+  }
 
   const apiKey = c.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return c.json({ error: 'Server configuration error: no API key configured' }, 500);
+    return c.json({
+      error: 'OPENROUTER_API_KEY is not configured on the server. Set it in worker/.dev.vars (dev) or via `wrangler secret put` (prod), then restart.',
+      code: 'MISSING_API_KEY'
+    }, 503);
+  }
+
+  let contextBlock = '';
+  try {
+    if (grounding?.destination) {
+      contextBlock = await groundItineraryContext(
+        { destination: grounding.destination, home: grounding.home },
+        c.env.EXA_API_KEY
+      );
+    }
+  } catch {
+    contextBlock = '';
   }
 
   const existingEvents = new Set();
@@ -508,7 +560,7 @@ Important constraints:
 7. Suggest unique places that aren't already in the itinerary
 8. Ensure suggestions are location-appropriate and culturally relevant
 
-The response must be a valid JSON object with the same structure as the current details.`;
+The response must be a valid JSON object with the same structure as the current details. Respond with ONLY the JSON object, no prose, no markdown fences.`;
 
   const userPrompt = `Current ${context.type} details:
 ${JSON.stringify(context.currentDetails, null, 2)}
@@ -517,90 +569,44 @@ User request: ${message}
 
 Respond with a JSON object containing the modified event details. Maintain the exact structure of the current details while incorporating the requested changes.`;
 
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt }
+  ];
+  if (contextBlock) {
+    messages[0] = { ...messages[0], content: `${messages[0].content}\n\n${contextBlock}` };
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': c.env.APP_URL || 'https://atharva2099.github.io/Trip.AI',
-        'X-Title': 'Trip.AI'
-      },
-      body: JSON.stringify({
-        model: 'deepseek/deepseek-v4-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.4,
-        max_tokens: 1000,
-        response_format: { type: 'json_object' }
-      })
-    });
-
+    const content = await callOpenRouter(
+      { messages, model, provider, temperature: 0.4, maxTokens: 1000, apiKey, appUrl: c.env.APP_URL, timeoutMs: 30000 },
+      fetch
+    );
     clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      return c.json({ error: errorData.error?.message || `OpenRouter error: ${response.status}` }, response.status);
+    const updatedEvent = parseModelJson(content);
+    if (!updatedEvent) {
+      return c.json({ error: 'Model returned invalid JSON' }, 502);
     }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      return c.json({ error: 'No content in response' }, 500);
-    }
-
-    const updatedEvent = JSON.parse(content);
     return c.json({ updatedEvent, message: 'Event modified successfully' });
   } catch (error) {
     clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      return c.json({ error: 'Request timed out after 30 seconds' }, 504);
-    }
-    return c.json({ error: error.message }, 500);
+    let status = 500;
+    if (error.code === 'MISSING_API_KEY' || error.code === 'PLACEHOLDER_API_KEY') status = 503;
+    else if (/timeout/i.test(error.message)) status = 504;
+    else if (error.status === 401 || error.status === 403) status = 502;
+    return c.json({ error: error.message, code: error.code || null }, status);
   }
-});
-
-// ─── OSRM Route Proxy ────────────────────────────────────────
-
-app.get('/api/route/*', async (c) => {
-  const path = c.req.path.replace('/api/route', '');
-  const query = c.req.query();
-  const queryString = Object.keys(query).length > 0
-    ? '?' + new URLSearchParams(query).toString()
-    : '';
-  const osrmUrl = `https://router.project-osrm.org${path}${queryString}`;
-
-  try {
-    const response = await fetch(osrmUrl);
-    const data = await response.json();
-    return c.json(data);
-  } catch (error) {
-    return c.json({ error: 'Routing service unavailable', message: error.message }, 502);
-  }
-});
-
-// ─── Debug ───────────────────────────────────────────────────
-
-app.get('/debug/env', (c) => {
-  return c.json({
-    app_url: c.env.APP_URL,
-    github_id_set: !!c.env.GITHUB_CLIENT_ID,
-    github_secret_set: !!c.env.GITHUB_CLIENT_SECRET,
-    google_id_set: !!c.env.GOOGLE_CLIENT_ID,
-    google_secret_set: !!c.env.GOOGLE_CLIENT_SECRET,
-    jwt_set: !!c.env.JWT_SECRET,
-    openrouter_set: !!c.env.OPENROUTER_API_KEY
-  });
 });
 
 // ─── Health ──────────────────────────────────────────────────
 
 app.get('/', (c) => c.json({ ok: true, service: 'tripai-api' }));
 
+// Note: do NOT export the config constants here. Wrangler 4.x interprets
+// every named export as a potential service entry and rejects non-handler
+// values. Constants are imported by reference inside the file.
 export default app;

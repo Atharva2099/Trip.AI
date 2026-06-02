@@ -262,7 +262,7 @@ export function computeJourneyStats(itinerary) {
     dayStats,
     longestLeg,
     transportBreakdown,
-    totalActivities: itinerary.days.reduce((sum, d) => sum + (d.activities || []).length, 0)
+    totalActivities: dayStats.reduce((sum, d) => sum + d.activityCount, 0)
   };
 }
 

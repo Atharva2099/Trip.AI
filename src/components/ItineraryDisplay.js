@@ -1,19 +1,22 @@
 // src/components/ItineraryDisplay.js
 import React, { useState, useMemo } from 'react';
 import {
-  ChevronDown, ChevronUp, UtensilsCrossed, MapPin,
-  DollarSign, CalendarDays, Clock, Navigation, Info,
-  AlertTriangle, ExternalLink
+  ChevronDown, ChevronUp, Plane, Train, Bus, Car, Navigation,
+  DollarSign, CalendarDays, AlertTriangle, ExternalLink
 } from 'lucide-react';
 import { BookmarkButton } from './BookmarksPage';
 import BudgetTracker from './BudgetTracker';
 import EventChat from './EventChat';
-import { getActivityLinks, getMealLinks, getAccommodationLinks } from '../utils/booking';
+import {
+  getActivityLinks,
+  getMealLinks,
+  getAccommodationLinks,
+  getGoogleFlightsUrl,
+  getRome2RioUrl
+} from '../utils/booking';
+import { DAY_COLORS } from '../utils/colors';
 
-const dayColors = [
-  '#C9593A', '#6B5C4A', '#1A1208', '#B0A090',
-  '#D8D0C4', '#8B7355', '#A08060', '#5C4A3A'
-];
+export { DAY_COLORS };
 
 function computeDayCost(day) {
   const actCost = (day.activities || []).reduce((s, a) => s + (a.cost || 0), 0);
@@ -42,7 +45,7 @@ const checkSimilarActivities = (activity, itinerary) => {
   if (!activityType) return null;
   const similarActivities = itinerary.days.flatMap(day =>
     day.activities.filter(a =>
-      a.name !== activity.name &&
+      a._uid !== activity._uid &&
       similarTypes[activityType].some(keyword =>
         a.name.toLowerCase().includes(keyword) ||
         a.description.toLowerCase().includes(keyword)
@@ -52,7 +55,17 @@ const checkSimilarActivities = (activity, itinerary) => {
   return similarActivities.length > 0 ? { type: activityType, activities: similarActivities } : null;
 };
 
-function ActivityCard({ activity, dayIndex, onClick, destination }) {
+function decorateItinerary(itinerary) {
+  if (!itinerary?.days) return itinerary;
+  const cloned = JSON.parse(JSON.stringify(itinerary));
+  cloned.days.forEach((day, di) => {
+    (day.activities || []).forEach((a, ai) => { a._uid = `d${di}a${ai}`; });
+    (day.meals || []).forEach((m, mi) => { m._uid = `d${di}m${mi}`; });
+  });
+  return cloned;
+}
+
+function ActivityCard({ activity, onClick, destination }) {
   const similarInfo = checkSimilarActivities(activity, activity._itinerary);
   return (
     <div
@@ -140,20 +153,20 @@ function MealCard({ meal, onClick, destination }) {
   );
 }
 
-function AccommodationOptions({ options, destination, checkin, checkout }) {
+function AccommodationOptions({ options, destination, checkin, checkout, numPeople }) {
   if (!options || options.length === 0) return null;
   return (
     <div className="mt-6 pt-6 border-t border-rule">
       <h4 className="text-[10px] uppercase tracking-[0.14em] text-ink-light mb-3">Where to Stay</h4>
       <div className="space-y-3">
         {options.map((opt, i) => (
-          <div key={i} className="border-l-2 border-terra pl-4 py-2">
+          <div key={opt._uid || i} className="border-l-2 border-terra pl-4 py-2">
             <div className="flex justify-between items-start">
               <div>
                 <div className="text-sm text-ink">{opt.name}</div>
                 <div className="text-xs text-ink-light">{opt.description}</div>
                 <div className="flex flex-wrap gap-2 mt-1.5">
-                  {getAccommodationLinks(opt, destination, checkin, checkout).map(link => (
+                  {getAccommodationLinks(opt, destination, checkin, checkout, numPeople).map(link => (
                     <a
                       key={link.label}
                       href={link.url}
@@ -184,22 +197,153 @@ function AccommodationOptions({ options, destination, checkin, checkout }) {
   );
 }
 
-const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, model }) => {
+const MODE_ICONS = {
+  plane: Plane,
+  flight: Plane,
+  train: Train,
+  bus: Bus,
+  car: Car,
+  taxi: Car,
+  walk: Navigation
+};
+
+function TransportIcon({ mode }) {
+  if (!mode) return null;
+  const key = mode.toLowerCase();
+  const Icon = MODE_ICONS[key] || Car;
+  return <Icon size={13} strokeWidth={1.5} />;
+}
+
+function TransportLeg({ leg, isAlt }) {
+  if (!leg?.primary) return null;
+  const { primary, alternatives } = leg;
+  const Icon = TransportIcon({ mode: primary.mode });
+  return (
+    <div className={isAlt ? 'mt-3 pt-3 border-t border-rule' : ''}>
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 flex items-center justify-center border border-rule text-ink shrink-0">
+          {Icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="font-medium text-sm text-ink capitalize">{primary.mode}</span>
+            {primary.duration && <span className="text-xs text-ink-light">· {primary.duration}</span>}
+            {primary.cost_per_person !== undefined && (
+              <span className="text-xs font-medium text-ink">· ${primary.cost_per_person}/person</span>
+            )}
+          </div>
+          {primary.details && (
+            <p className="text-xs text-ink-light mt-0.5">{primary.details}</p>
+          )}
+        </div>
+      </div>
+      {isAlt && <p className="text-[10px] uppercase tracking-[0.14em] text-ink-muted mt-2">Alternative</p>}
+      {Array.isArray(alternatives) && alternatives.map((alt, i) => {
+        const AltIcon = TransportIcon({ mode: alt.mode });
+        return (
+          <div key={i} className="flex items-start gap-3 mt-2 pl-11">
+            <div className="w-6 h-6 flex items-center justify-center text-ink-light shrink-0">
+              {AltIcon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-xs text-ink-light capitalize">{alt.mode}</span>
+                {alt.duration && <span className="text-xs text-ink-muted">· {alt.duration}</span>}
+                {alt.cost_per_person !== undefined && (
+                  <span className="text-xs text-ink-muted">· ${alt.cost_per_person}/person</span>
+                )}
+              </div>
+              {alt.details && <p className="text-xs text-ink-muted mt-0.5">{alt.details}</p>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TravelSection({ from, to, transportTo, transportBack, dates }) {
+  if (!transportTo?.primary && !transportBack?.primary) return null;
+  const startDate = dates?.start;
+  const endDate = dates?.end;
+  return (
+    <div className="px-6 py-6 border-b border-rule bg-cream-dark/40">
+      <h3 className="text-[10px] uppercase tracking-[0.14em] text-ink-light mb-4">Travel</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-ink-muted mb-2">Getting There</p>
+          <TransportLeg leg={transportTo} />
+          {from && to && startDate && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {(() => {
+                const url = getGoogleFlightsUrl(from, to, startDate, endDate);
+                return url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors" onClick={e => e.stopPropagation()}>
+                    <ExternalLink size={9} /> Google Flights
+                  </a>
+                ) : null;
+              })()}
+              {(() => {
+                const url = getRome2RioUrl(from, to);
+                return url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors" onClick={e => e.stopPropagation()}>
+                    <ExternalLink size={9} /> Rome2Rio
+                  </a>
+                ) : null;
+              })()}
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-ink-muted mb-2">Getting Back</p>
+          <TransportLeg leg={transportBack} />
+          {from && to && endDate && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {(() => {
+                const url = getGoogleFlightsUrl(to, from, endDate, endDate);
+                return url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors" onClick={e => e.stopPropagation()}>
+                    <ExternalLink size={9} /> Google Flights
+                  </a>
+                ) : null;
+              })()}
+              {(() => {
+                const url = getRome2RioUrl(to, from);
+                return url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] text-ink-light hover:text-terra transition-colors" onClick={e => e.stopPropagation()}>
+                    <ExternalLink size={9} /> Rome2Rio
+                  </a>
+                ) : null;
+              })()}
+            </div>
+          )}
+        </div>
+      </div>
+      <p className="text-[10px] uppercase tracking-[0.14em] text-ink-muted mt-4">
+        Prices are estimates — verify before booking
+      </p>
+    </div>
+  );
+}
+
+const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, model, provider }) => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isEventChatOpen, setIsEventChatOpen] = useState(false);
   const [isActivity, setIsActivity] = useState(true);
   const [expandedDays, setExpandedDays] = useState(new Set([0]));
   const [showTracker, setShowTracker] = useState(false);
 
+  const decorated = useMemo(() => decorateItinerary(itinerary), [itinerary]);
+
   const totalBudget = tripData?.budget || itinerary?.groupTotal || 0;
   const travelers = tripData?.numPeople || 1;
 
   const validDays = useMemo(() => {
-    if (!itinerary) return [];
-    return (itinerary.days || [])
+    if (!decorated) return [];
+    return (decorated.days || [])
       .filter(day => day.activities && day.activities.length > 0)
       .map((day, idx) => ({ ...day, _computedCost: computeDayCost(day), _dayIndex: idx }));
-  }, [itinerary]);
+  }, [decorated]);
 
   const cumulativeCosts = useMemo(() => {
     let running = 0;
@@ -224,29 +368,30 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
   const collapseAll = () => setExpandedDays(new Set());
 
   const handleEventUpdate = (updatedEvent) => {
-    const updatedItinerary = JSON.parse(JSON.stringify(itinerary));
-    const dayIndex = updatedItinerary.days.findIndex(day =>
-      day.activities.some(activity => activity.name === selectedEvent.name) ||
-      day.meals.some(meal => meal.name === selectedEvent.name)
-    );
-    if (dayIndex !== -1) {
-      const day = updatedItinerary.days[dayIndex];
-      if (isActivity) {
-        const i = day.activities.findIndex(a => a.name === selectedEvent.name);
-        if (i !== -1) day.activities[i] = updatedEvent;
-      } else {
-        const i = day.meals.findIndex(m => m.name === selectedEvent.name);
-        if (i !== -1) day.meals[i] = updatedEvent;
+    const updatedItinerary = JSON.parse(JSON.stringify(decorated));
+    let replaced = false;
+    updatedItinerary.days.forEach(day => {
+      const list = isActivity ? day.activities : day.meals;
+      const i = list.findIndex(e => e._uid === selectedEvent._uid);
+      if (i !== -1) {
+        list[i] = { ...updatedEvent, _uid: selectedEvent._uid };
+        replaced = true;
+        day.dailyTotal = computeDayCost(day);
       }
-      day.dailyTotal = computeDayCost(day);
-      onItineraryUpdate(updatedItinerary);
-    }
+    });
+    if (replaced) onItineraryUpdate(updatedItinerary);
   };
 
-  const expandedCost = expandedDays.size > 0
-    ? Math.max(...Array.from(expandedDays).map(i => cumulativeCosts[i] || 0))
+  const expandedIndices = Array.from(expandedDays);
+  const expandedCost = expandedIndices.length > 0
+    ? Math.max(...expandedIndices.map(i => cumulativeCosts[i] || 0))
     : 0;
   const pct = totalBudget > 0 ? Math.min(100, Math.round((expandedCost / totalBudget) * 100)) : 0;
+
+  const topDay = expandedIndices.length > 0 ? Math.max(...expandedIndices) + 1 : 0;
+
+  const fromName = itinerary.from || tripData?.from?.fullName || tripData?.from;
+  const toName = itinerary.to || tripData?.destination;
 
   return (
     <div className="border-t border-rule">
@@ -256,7 +401,7 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
           <div className="flex items-center gap-4 text-[10px] uppercase tracking-[0.14em] text-ink-light">
             <span className="flex items-center gap-1.5">
               <CalendarDays size={11} />
-              Day {expandedDays.size > 0 ? Math.max(...Array.from(expandedDays)) + 1 : 0} of {validDays.length}
+              {expandedIndices.length > 0 ? `Day ${topDay}` : `${validDays.length} days`} of {validDays.length}
             </span>
             <span className="flex items-center gap-1.5">
               <DollarSign size={11} />
@@ -275,7 +420,14 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
 
       {/* Header */}
       <div className="px-6 py-6 flex items-center justify-between border-b border-rule">
-        <h2 className="font-serif text-2xl text-ink">Your Itinerary</h2>
+        <div>
+          <h2 className="font-serif text-2xl text-ink">Your Itinerary</h2>
+          {fromName && toName && (
+            <p className="text-xs text-ink-muted mt-1">
+              {fromName} → {toName} → {fromName}
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowTracker(true)}
@@ -290,17 +442,25 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
         </div>
       </div>
 
+      {/* Travel section */}
+      <TravelSection
+        from={fromName}
+        to={toName}
+        transportTo={itinerary.transport_to_destination}
+        transportBack={itinerary.transport_back_home}
+        dates={tripData?.dates}
+      />
+
       {/* Days */}
       <div>
         {validDays.map((day, idx) => {
           const isExpanded = expandedDays.has(idx);
-          const dayColor = dayColors[idx % dayColors.length];
+          const dayColor = DAY_COLORS[idx % DAY_COLORS.length];
           const cumCost = cumulativeCosts[idx];
           const pctUsed = totalBudget > 0 ? Math.round((cumCost / totalBudget) * 100) : 0;
 
           return (
             <div key={idx} className="border-b border-rule">
-              {/* Day header */}
               <button
                 onClick={() => toggleDay(idx)}
                 className="w-full flex items-center gap-4 px-6 py-4 text-left hover:bg-cream-dark/30 transition-colors"
@@ -333,39 +493,33 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
                 </div>
               </button>
 
-              {/* Expanded content */}
               {isExpanded && (
                 <div className="px-6 pb-6 pt-2">
-                  {/* Meals */}
                   {day.meals && day.meals.length > 0 && (
                     <div className="mb-6">
                       <h4 className="text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">Meals</h4>
                       <div className="border-t border-rule">
                         {day.meals.map((meal, mIdx) => (
-                          <MealCard key={mIdx} meal={meal} destination={tripData?.destination} onClick={() => { setSelectedEvent(meal); setIsActivity(false); setIsEventChatOpen(true); }} />
+                          <MealCard key={meal._uid || mIdx} meal={meal} destination={tripData?.destination} onClick={() => { setSelectedEvent(meal); setIsActivity(false); setIsEventChatOpen(true); }} />
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Activities */}
                   <div className="space-y-1">
                     <h4 className="text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">Activities</h4>
                     {day.activities.map((activity, aIdx) => (
                       <ActivityCard
-                        key={aIdx}
-                        activity={{ ...activity, _itinerary: itinerary }}
+                        key={activity._uid || aIdx}
+                        activity={{ ...activity, _itinerary: decorated }}
                         destination={tripData?.destination}
-                        dayIndex={idx}
                         onClick={() => { setSelectedEvent(activity); setIsActivity(true); setIsEventChatOpen(true); }}
                       />
                     ))}
                   </div>
 
-                  {/* Accommodation */}
-                  {day.accommodation_options && <AccommodationOptions options={day.accommodation_options} destination={tripData?.destination} checkin={tripData?.dates?.start} checkout={tripData?.dates?.end} />}
+                  {day.accommodation_options && <AccommodationOptions options={day.accommodation_options} destination={tripData?.destination} checkin={tripData?.dates?.start} checkout={tripData?.dates?.end} numPeople={travelers} />}
 
-                  {/* Daily total */}
                   <div className="flex justify-end pt-4 mt-4 border-t border-rule">
                     <div className="text-right">
                       <p className="text-[10px] uppercase tracking-[0.14em] text-ink-muted">Daily Total</p>
@@ -382,7 +536,6 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
         })}
       </div>
 
-      {/* Bottom summary */}
       {itinerary.costBreakdown && (
         <div className="px-6 py-8 border-t border-rule">
           <h3 className="text-[10px] uppercase tracking-[0.14em] text-ink-light mb-4">Cost Breakdown (Per Person)</h3>
@@ -407,7 +560,6 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
         </div>
       )}
 
-      {/* Budget Tracker Overlay */}
       {showTracker && (
         <div className="fixed inset-0 z-50 bg-cream overflow-y-auto">
           <BudgetTracker
@@ -418,12 +570,13 @@ const ItineraryDisplay = ({ itinerary, tripData, onItineraryUpdate, apiKey, mode
         </div>
       )}
 
-      {/* Event Chat */}
       {isEventChatOpen && selectedEvent && (
         <EventChat
           event={selectedEvent}
           isActivity={isActivity}
-          currentItinerary={itinerary}
+          currentItinerary={decorated}
+          model={model}
+          provider={provider}
           onClose={() => { setIsEventChatOpen(false); setSelectedEvent(null); }}
           onEventUpdate={handleEventUpdate}
         />

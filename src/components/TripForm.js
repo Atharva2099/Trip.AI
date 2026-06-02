@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { format, addDays, differenceInDays, startOfToday } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/src/style.css';
 import {
-  MapPin, Building2, Globe, Camera, Trees, Waves,
+  Home, MapPin, Building2, Globe, Camera, Trees, Waves,
   MountainSnow, Users, Minus, Plus, Mountain,
   UtensilsCrossed, Landmark, Moon, Coffee,
   ShoppingBag, Compass, Palette, Umbrella, Sparkles,
   Flower2, Sun, Leaf, Snowflake, ChevronDown, X,
-  Compass as AdventureIcon, Backpack, CalendarDays
+  Compass as AdventureIcon, Backpack, CalendarDays, Cpu
 } from 'lucide-react';
 import { searchPlaces, getPlaceIcon } from '../utils/nominatim';
 import { getSeason, getTheme } from '../utils/season';
+import { MODELS, DEFAULT_MODEL } from '../config';
 
 const INTERESTS = [
   { key: 'hiking', label: 'Hiking', icon: Mountain },
@@ -36,72 +37,15 @@ const PRESETS = [
   { key: 'backpacker', label: 'Backpacker', icon: Backpack, interests: ['adventure', 'hiking'], budgetMod: 0.7 }
 ];
 
-const MODELS = [
-  { value: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
-  { value: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
-  { value: 'qwen/qwen3.6-max-preview', label: 'Qwen 3.6 Max' },
-  { value: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
-  { value: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (Free)' }
-];
-
-const FALLBACK_MODEL = 'deepseek/deepseek-v4-flash';
-const LS_KEY = 'tripai_form_v2';
+const LS_KEY = 'tripai_form_v3';
 
 const IconMap = {
-  MapPin, Building2, Globe, Camera, Trees, Waves, MountainSnow,
+  Home, MapPin, Building2, Globe, Camera, Trees, Waves, MountainSnow,
   Users, Mountain, UtensilsCrossed, Landmark, Moon, Coffee,
   ShoppingBag, Compass, Palette, Umbrella, Sparkles,
   Flower2, Sun, Leaf, Snowflake, ChevronDown, X,
   AdventureIcon, Backpack, CalendarDays
 };
-
-async function classifyDestinationCost(destination, apiKey, model) {
-  if (!apiKey || !destination) return null;
-  const cacheKey = `cost_${destination}`;
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) return JSON.parse(cached);
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'Trip.AI'
-      },
-      body: JSON.stringify({
-        model: model || FALLBACK_MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: 'You classify tourist destinations by daily cost per person in USD. Respond ONLY with a JSON object: { "tier": "budget|mid-range|luxury|ultra-luxury", "minDaily": number, "maxDaily": number, "description": "short phrase like Mid-range European city" }'
-          },
-          {
-            role: 'user',
-            content: `Classify "${destination}" for a tourist visiting for leisure. What is the typical daily cost per person for food, activities, and local transport (excluding accommodation and flights)?`
-          }
-        ],
-        temperature: 0.2,
-        max_tokens: 200,
-        response_format: { type: 'json_object' },
-        include_reasoning: false
-      })
-    });
-    clearTimeout(timeoutId);
-    if (!response.ok) return null;
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) return null;
-    const parsed = JSON.parse(content);
-    localStorage.setItem(cacheKey, JSON.stringify(parsed));
-    return parsed;
-  } catch {
-    return null;
-  }
-}
 
 function Stepper({ label, value, onChange, min = 0, max = 20 }) {
   return (
@@ -153,92 +97,190 @@ function SeasonIcon({ season }) {
   return <Icon size={14} className="text-terra" strokeWidth={1.5} />;
 }
 
+// Reusable autocomplete input for place search. Used for both From and Destination.
+function PlaceAutocomplete({ label, iconName, value, placeholder, onSelect, error }) {
+  const [text, setText] = useState(value?.fullName || '');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSugg, setShowSugg] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef(null);
+  const timeout = useRef(null);
+  const Icon = IconMap[iconName] || MapPin;
+
+  useEffect(() => {
+    setText(value?.fullName || '');
+  }, [value?.fullName]);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setShowSugg(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const onChangeText = (next) => {
+    setText(next);
+    setShowSugg(true);
+    if (timeout.current) clearTimeout(timeout.current);
+    if (!next || next.length < 2) {
+      setSuggestions([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    timeout.current = setTimeout(async () => {
+      const results = await searchPlaces(next);
+      setSuggestions(results);
+      setLoading(false);
+    }, 350);
+  };
+
+  const onPick = (place) => {
+    setText(place.fullName);
+    setShowSugg(false);
+    setSuggestions([]);
+    onSelect(place);
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
+        {label}
+      </label>
+      <div className="relative">
+        <Icon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" strokeWidth={1.5} />
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => onChangeText(e.target.value)}
+          onFocus={() => text.length >= 2 && setShowSugg(true)}
+          placeholder={placeholder}
+          className="w-full pl-9 pr-3 py-3 border border-rule bg-cream text-ink placeholder-ink-muted focus:outline-none focus:border-terra transition-colors text-sm"
+          required
+        />
+        {loading && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <div className="w-3 h-3 border border-rule border-t-terra rounded-full animate-spin" />
+          </div>
+        )}
+      </div>
+      {error && <p className="mt-2 text-xs text-terra">{error}</p>}
+      {showSugg && suggestions.length > 0 && (
+        <div className="absolute z-20 w-full mt-1 bg-cream border border-rule shadow-lg">
+          {suggestions.map((place) => {
+            const SuggIcon = IconMap[getPlaceIcon(place.type, place.class)] || MapPin;
+            return (
+              <button
+                key={place.id}
+                type="button"
+                onClick={() => onPick(place)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-cream-dark text-left transition-colors border-b border-rule last:border-b-0"
+              >
+                <SuggIcon size={14} className="text-ink-muted shrink-0" strokeWidth={1.5} />
+                <div className="min-w-0">
+                  <div className="text-sm text-ink truncate">{place.name}</div>
+                  <div className="text-xs text-ink-muted truncate">{place.fullName}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
+  // Defaults for every field. loadInitial merges any saved form on top
+  // so missing keys (e.g. from a stale localStorage written before the
+  // From field was added) get safe values instead of undefined.
+  const DEFAULTS = {
+    from: null,
+    fromText: '',
+    destination: null,
+    destinationText: '',
+    dateRange: { from: null, to: null },
+    travelers: { adults: 2, children: 0 },
+    budget: 3000,
+    interests: [],
+    preset: null,
+    model: DEFAULT_MODEL
+  };
+
   const loadInitial = () => {
+    let saved = null;
     try {
-      const saved = localStorage.getItem(LS_KEY);
-      if (saved) return JSON.parse(saved);
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') saved = parsed;
+      }
     } catch { /* ignore */ }
+
     return {
-      destination: null,
-      destinationText: '',
-      dateRange: { from: null, to: null },
-      travelers: { adults: 2, children: 0 },
-      budget: 3000,
-      interests: [],
-      preset: null,
-      model: FALLBACK_MODEL
+      ...DEFAULTS,
+      ...(saved || {}),
+      // Shallow-merge nested objects so partial saved forms don't lose
+      // the default fields.
+      dateRange: { ...DEFAULTS.dateRange, ...((saved && saved.dateRange) || {}) },
+      travelers: { ...DEFAULTS.travelers, ...((saved && saved.travelers) || {}) }
     };
   };
 
   const [form, setForm] = useState(loadInitial);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [costData, setCostData] = useState(null);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [formErrors, setFormErrors] = useState({});
 
-  const searchTimeout = useRef(null);
   const calendarRef = useRef(null);
-  const suggestionsRef = useRef(null);
   const formRef = useRef(form);
 
   useEffect(() => { formRef.current = form; }, [form]);
 
   useEffect(() => {
     localStorage.setItem(LS_KEY, JSON.stringify(form));
-    localStorage.setItem('openrouter_api_key', form.apiKey);
-    localStorage.setItem('openrouter_model', form.model);
   }, [form]);
 
   useEffect(() => {
     setFormErrors((prev) => {
       const next = { ...prev };
-      if (form.destination || form.destinationText.trim()) delete next.destination;
+      const fromText = (form.fromText || '').trim();
+      const destText = (form.destinationText || '').trim();
+      if (form.from || fromText) delete next.from;
+      if (form.destination || destText) delete next.destination;
       if (form.dateRange.from && form.dateRange.to) delete next.dates;
       return next;
     });
-  }, [form.destination, form.destinationText, form.dateRange.from, form.dateRange.to]);
+  }, [form.from, form.fromText, form.destination, form.destinationText, form.dateRange.from, form.dateRange.to]);
 
   useEffect(() => {
     function handleClick(e) {
       if (calendarRef.current && !calendarRef.current.contains(e.target)) setShowCalendar(false);
-      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) setShowSuggestions(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const handleDestinationInput = useCallback((text) => {
-    setForm((f) => ({ ...f, destinationText: text, destination: null }));
-    setShowSuggestions(true);
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    if (!text || text.length < 2) {
-      setSuggestions([]);
-      setLoadingSuggestions(false);
-      return;
+  const handleFromSelect = (place) => {
+    const currentForm = formRef.current;
+    setForm((f) => ({ ...f, from: place, fromText: place.fullName }));
+    if (currentForm.dateRange?.from) {
+      // Season follows the destination (not home), so this only updates if destination is already set.
+      if (currentForm.destination) {
+        const season = getSeason(currentForm.destination.lat, new Date(currentForm.dateRange.from));
+        if (onThemeChange) onThemeChange(season);
+      }
     }
-    setLoadingSuggestions(true);
-    searchTimeout.current = setTimeout(async () => {
-      const results = await searchPlaces(text);
-      setSuggestions(results);
-      setLoadingSuggestions(false);
-    }, 350);
-  }, []);
+  };
 
-  const selectDestination = (place) => {
+  const handleDestinationSelect = (place) => {
     const currentForm = formRef.current;
     setForm((f) => ({ ...f, destination: place, destinationText: place.fullName }));
-    setShowSuggestions(false);
-    setSuggestions([]);
+    setShowCalendar(false);
     if (currentForm.dateRange?.from) {
       const season = getSeason(place.lat, new Date(currentForm.dateRange.from));
       if (onThemeChange) onThemeChange(season);
-    }
-    if (currentForm.apiKey) {
-      classifyDestinationCost(place.fullName, currentForm.apiKey, currentForm.model).then(setCostData);
     }
   };
 
@@ -309,14 +351,20 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const fromText = (form.fromText || '').trim();
+    const destText = (form.destinationText || '').trim();
     const errors = {};
-    if (!form.destination && !form.destinationText.trim()) errors.destination = 'Please enter a destination';
+    if (!form.from && !fromText) errors.from = 'Please enter where you are travelling from';
+    if (!form.destination && !destText) errors.destination = 'Please enter a destination';
     if (!form.dateRange.from || !form.dateRange.to) errors.dates = 'Please select your travel dates';
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
+    const modelEntry = MODELS.find(m => m.id === form.model) || MODELS[0];
+
     onSubmit({
-      destination: form.destination?.fullName || form.destinationText,
+      from: form.from || { fullName: fromText },
+      destination: form.destination?.fullName || destText,
       dates: {
         start: format(new Date(form.dateRange.from), 'yyyy-MM-dd'),
         end: format(new Date(form.dateRange.to), 'yyyy-MM-dd')
@@ -324,8 +372,11 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
       budget: form.budget,
       numPeople: totalTravelers,
       interests: form.interests.join(', '),
+      model: modelEntry.value,
+      modelProvider: modelEntry.provider || null,
       additionalNotes: '',
       _destinationMeta: form.destination,
+      _fromMeta: form.from,
       _travelers: form.travelers
     });
   };
@@ -337,53 +388,28 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
 
+          {/* From — full width */}
+          <div className="md:col-span-2">
+            <PlaceAutocomplete
+              label="From"
+              iconName="Home"
+              value={form.from}
+              placeholder="City you're travelling from..."
+              onSelect={handleFromSelect}
+              error={formErrors.from}
+            />
+          </div>
+
           {/* Destination — full width */}
-          <div className="md:col-span-2 relative" ref={suggestionsRef}>
-            <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
-              Destination
-            </label>
-            <div className="relative">
-              <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" strokeWidth={1.5} />
-              <input
-                type="text"
-                value={form.destinationText}
-                onChange={(e) => handleDestinationInput(e.target.value)}
-                onFocus={() => form.destinationText.length >= 2 && setShowSuggestions(true)}
-                placeholder="Search for a city or place..."
-                className="w-full pl-9 pr-3 py-3 border border-rule bg-cream text-ink placeholder-ink-muted focus:outline-none focus:border-terra transition-colors text-sm"
-                required
-              />
-              {loadingSuggestions && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <div className="w-3 h-3 border border-rule border-t-terra rounded-full animate-spin" />
-                </div>
-              )}
-            </div>
-            {formErrors.destination && (
-              <p className="mt-2 text-xs text-terra">{formErrors.destination}</p>
-            )}
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute z-20 w-full mt-1 bg-cream border border-rule shadow-lg">
-                {suggestions.map((place) => {
-                  const iconName = getPlaceIcon(place.type, place.class);
-                  const Icon = IconMap[iconName] || MapPin;
-                  return (
-                    <button
-                      key={place.id}
-                      type="button"
-                      onClick={() => selectDestination(place)}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-cream-dark text-left transition-colors border-b border-rule last:border-b-0"
-                    >
-                      <Icon size={14} className="text-ink-muted shrink-0" strokeWidth={1.5} />
-                      <div className="min-w-0">
-                        <div className="text-sm text-ink truncate">{place.name}</div>
-                        <div className="text-xs text-ink-muted truncate">{place.fullName}</div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+          <div className="md:col-span-2">
+            <PlaceAutocomplete
+              label="Destination"
+              iconName="MapPin"
+              value={form.destination}
+              placeholder="Search for a city or place..."
+              onSelect={handleDestinationSelect}
+              error={formErrors.destination}
+            />
           </div>
 
           {/* Dates — full width */}
@@ -502,14 +528,25 @@ const TripForm = ({ onSubmit, disabled, theme, onThemeChange }) => {
               <span>$500</span>
               <span>$20,000</span>
             </div>
-            {costData && (
-              <div className="mt-3 text-xs text-ink-light border-l-2 border-terra pl-3">
-                <span className="font-medium text-ink">{costData.description || costData.tier}</span>
-                {costData.minDaily && costData.maxDaily && (
-                  <span> — typical ${costData.minDaily}-${costData.maxDaily}/person/day</span>
-                )}
-              </div>
-            )}
+          </div>
+
+          {/* Model — full width */}
+          <div className="md:col-span-2">
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-ink-light mb-2">
+              Model
+            </label>
+            <div className="relative">
+              <Cpu size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" strokeWidth={1.5} />
+              <select
+                value={form.model}
+                onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+                className="w-full pl-9 pr-3 py-3 border border-rule bg-cream text-ink focus:outline-none focus:border-terra transition-colors text-sm appearance-none cursor-pointer"
+              >
+                {MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Interests — full width */}

@@ -2,10 +2,29 @@ name = "tripai-api"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
 
+# Base bindings (used by `wrangler dev`)
 [[d1_databases]]
 binding = "DB"
 database_name = "tripai-database"
 database_id = "e9eea8bf-ec25-4da1-a34f-431285e390ef"
 
+# Base config — used by `wrangler dev` (local). No ENVIRONMENT var, so
+# the dev-login gate stays open for local testing.
 [vars]
 APP_URL = "https://atharva2099.github.io/Trip.AI"
+
+# Production config — used by `wrangler deploy --env production`. We
+# explicitly set ENVIRONMENT=production here so the worker code can
+# reliably tell it's running in prod (env is undefined in wrangler dev).
+# Bindings are NOT inherited from the top level, so we must redeclare.
+[env.production]
+name = "tripai-api"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "tripai-database"
+database_id = "e9eea8bf-ec25-4da1-a34f-431285e390ef"
+
+[env.production.vars]
+APP_URL = "https://atharva2099.github.io/Trip.AI"
+ENVIRONMENT = "production"

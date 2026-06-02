@@ -1,4 +1,4 @@
-const API_BASE = 'https://tripai-api.athuspydy.workers.dev';
+import { API_BASE } from '../config';
 
 function getToken() {
   return localStorage.getItem('tripai_token');
@@ -34,6 +34,7 @@ export const tripsApi = {
   list: () => api('/api/trips'),
   get: (id) => api(`/api/trips/${id}`),
   create: (data) => api('/api/trips', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => api(`/api/trips/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id) => api(`/api/trips/${id}`, { method: 'DELETE' })
 };
 
@@ -41,16 +42,6 @@ export const bookmarksApi = {
   list: () => api('/api/bookmarks'),
   create: (data) => api('/api/bookmarks', { method: 'POST', body: JSON.stringify(data) }),
   delete: (id) => api(`/api/bookmarks/${id}`, { method: 'DELETE' })
-};
-
-export const expensesApi = {
-  list: (itineraryId) => api(`/api/expenses?itinerary_id=${itineraryId}`),
-  create: (data) => api('/api/expenses', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id, data) => api(`/api/expenses/${id}`, { method: 'PUT', body: JSON.stringify(data) })
-};
-
-export const profileApi = {
-  get: () => api('/api/profile')
 };
 
 export { getToken };
